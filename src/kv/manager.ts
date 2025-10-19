@@ -67,8 +67,7 @@ export class KVManager {
           }
         }
 
-        // @ts-expect-error cursor may exist in some implementations
-        cursor = result.cursor;
+        cursor = (result as { cursor?: string }).cursor;
         hasMore = result.list_complete === false;
       }
     } catch (error) {
@@ -314,8 +313,7 @@ export class KVManager {
           }
         }
 
-        // @ts-expect-error cursor may exist in some implementations
-        cursor = result.cursor;
+        cursor = (result as { cursor?: string }).cursor;
         hasMore = result.list_complete === false;
       }
     } catch (error) {
