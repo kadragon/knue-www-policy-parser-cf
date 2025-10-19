@@ -1,7 +1,7 @@
 {
   "name": "knue-www-policy-parser-cf",
   "main": "src/index.ts",
-  "compatibility_date": "2024-10-17",
+  "compatibility_date": "2025-10-19",
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
@@ -21,8 +21,8 @@
   "kv_namespaces": [
     {
       "binding": "POLICY_REGISTRY",
-      "id": "knue-policy-registry",
-      "preview_id": "knue-policy-registry-preview"
+      "id": "cabc7a44c7064acc848bc06d80c5df47",
+      "preview_id": "47ba544e6c914bc0851f9bda89b5ebb9"
     }
   ],
   "vars": {
@@ -30,7 +30,5 @@
     "POLICY_PAGE_KEY": "392",
     "PREVIEW_PARSER_BASE_URL": "https://knue-www-preview-parser-cf.kangdongouk.workers.dev/"
   },
-  "secrets": [
-    "BEARER_TOKEN"
-  ]
+  "secrets": ["BEARER_TOKEN"]
 }
