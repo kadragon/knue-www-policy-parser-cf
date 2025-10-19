@@ -1,3 +1,13 @@
+---
+id: SPEC-KV-SYNC-ALGO-001
+version: 1.1.0
+scope: global
+status: active
+supersedes: []
+depends: []
+last-updated: 2025-10-19
+owner: project-admin
+---
 # KV Synchronization Algorithm Specification
 
 ## Overview

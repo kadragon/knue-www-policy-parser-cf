@@ -30,6 +30,5 @@
     "POLICY_PAGE_URL": "https://www.knue.ac.kr/www/contents.do?key=392",
     "POLICY_PAGE_KEY": "392",
     "PREVIEW_PARSER_BASE_URL": "https://knue-www-preview-parser-cf.kangdongouk.workers.dev/"
-  },
-  "secrets": ["BEARER_TOKEN"]
+  }
 }

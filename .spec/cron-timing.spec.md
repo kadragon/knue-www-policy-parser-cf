@@ -1,16 +1,26 @@
+---
+id: SPEC-CRON-TIMING-001
+version: 2.0.0
+scope: global
+status: active
+supersedes: []
+depends: []
+last-updated: 2025-10-19
+owner: project-admin
+---
 # Cron Trigger Timing Specification
 
 ## Requirements
 - **Target Timezone:** KST (Korea Standard Time = UTC + 9)
-- **Target Time:** 01:00 (new day, early morning)
-- **Frequency:** Daily
+- **Target Time:** 01:00 (start of operational day)
+- **Frequency:** Daily (runs every calendar day)
 
 ## Timezone Conversion
 
 ### KST to UTC
 ```
-KST 01:00 (e.g., Oct 19, 2025 01:00 KST)
-= UTC 16:00 (Oct 18, 2025 16:00 UTC)
+KST 01:00 (e.g., 2025-10-19 01:00 KST)
+= UTC 16:00 (2025-10-18 16:00 UTC)
 
 Calculation: 01:00 - 09:00 = -08:00 → previous day 16:00 UTC
 ```

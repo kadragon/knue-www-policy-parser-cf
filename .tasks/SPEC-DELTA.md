@@ -1,147 +1,123 @@
-# Specification - Policy Link Collection Worker
+# Specification - Policy Link Collection Worker (Daily Sync)
 
-**Task ID**: `init-policy-parser`
-**Version**: 1.0.0
-**Date**: 2025-10-19
+**Task ID**: `init-policy-parser`  
+**Version**: 2.0.0  
+**Date**: 2025-10-19  
+**Status**: Active
 
 ## Acceptance Criteria
 
-### AC-1: Scheduled Execution
-- **GIVEN** the worker is deployed with cron trigger `0 2 * * 0`
-- **WHEN** the scheduled time arrives (every Sunday at 2AM UTC / 11AM KST)
-- **THEN** the worker executes the link collection workflow
+1. **AC-1: Daily Cron Execution**  
+   - GIVEN the worker is deployed with cron trigger `0 16 * * *`  
+   - WHEN it is 16:00 UTC on any calendar day  
+   - THEN the scheduled handler runs exactly once for that slot and logs the ISO timestamp of the run.
 
-### AC-2: Page Fetching
-- **GIVEN** the policy page URL is configured
-- **WHEN** the worker fetches the page
-- **THEN** it retrieves the full HTML content
-- **AND** retries up to 3 times on transient failures
-- **AND** uses exponential backoff (1s, 2s, 4s)
-- **AND** times out after 5 seconds per attempt
+2. **AC-2: Guarding HTTP Requests**  
+   - GIVEN an HTTP request hits the worker  
+   - WHEN the request uses `fetch()` entrypoint  
+   - THEN the worker returns HTTP 405 with a JSON body explaining that only cron triggers are allowed.
 
-### AC-3: Link Extraction
-- **GIVEN** HTML content from the policy page
-- **WHEN** the worker parses the content
-- **THEN** it extracts all unique `fileNo` values
-- **AND** generates preview URLs: `https://www.knue.ac.kr/www/previewMenuCntFile.do?key={key}&fileNo={fileNo}`
-- **AND** generates download URLs: `https://www.knue.ac.kr/downloadContentsFile.do?key={key}&fileNo={fileNo}`
-- **AND** removes duplicate entries
+3. **AC-3: Policy Page Fetching**  
+   - GIVEN `POLICY_PAGE_URL` resolves correctly  
+   - WHEN the scheduled handler executes  
+   - THEN it fetches HTML within 5s, retrying up to 3 times on `429`, `503`, timeouts, or aborted requests, and aborts early on non-retryable errors.
 
-### AC-4: Title Enrichment
-- **GIVEN** extracted links with fileNo values
-- **WHEN** the worker enriches the data
-- **THEN** it attempts to extract document titles from the HTML
-- **AND** includes title when found
-- **AND** gracefully omits title when not found
+4. **AC-4: Link Extraction & Title Enrichment**  
+   - GIVEN valid HTML is retrieved  
+   - WHEN `parsePolicyLinks` runs  
+   - THEN it returns deduplicated entries filtered by `POLICY_PAGE_KEY` with absolute preview/download URLs.  
+   - AND `enrichLinksWithTitles` attempts to attach `title` per `fileNo`, leaving the field undefined if not found.
 
-### AC-5: R2 Storage
-- **GIVEN** enriched link data
-- **WHEN** the worker saves to R2
-- **THEN** it creates a JSON file at path `policy/{pageKey}/YYYY_MM_DD_links.json`
-- **AND** the JSON contains: timestamp, pageKey, count, and links array
-- **AND** each link contains: fileNo, previewUrl, downloadUrl, optional title
-- **AND** content-type is set to `application/json`
+5. **AC-5: Preview API Enrichment**  
+   - GIVEN `PREVIEW_PARSER_BASE_URL` and `BEARER_TOKEN` are configured  
+   - WHEN per-policy exports are written  
+   - THEN the worker calls the preview API with `atchmnflNo={fileNo}` and Authorization header, and, upon success, includes `summary`, `content`, and any extra fields in the Markdown output.  
+   - AND any fetch failure downgrades to a warning without aborting the run.
 
-### AC-6: Duplicate Prevention
-- **GIVEN** a file already exists for today's date
-- **WHEN** the worker runs again
-- **THEN** it skips saving
-- **AND** logs a skip message
-- **AND** does not throw an error
+6. **AC-6: KV Synchronization**  
+   - GIVEN enriched link data with titles  
+   - WHEN `PolicySynchronizer.synchronize` executes  
+   - THEN new titles are added, changed `fileNo` values are updated, missing titles are dropped, and removed titles are deleted.  
+   - AND matching queue entries are enqueued for add/update operations.  
+   - AND sync metadata (`metadata:sync:lastRun`) records counts and success status.
 
-### AC-7: HTTP Request Rejection
-- **GIVEN** a direct HTTP request to the worker
-- **WHEN** the request is received
-- **THEN** it returns 405 Method Not Allowed
-- **AND** includes error message explaining cron-only operation
+7. **AC-7: Per-Policy Markdown Export**  
+   - GIVEN enriched links (with or without preview content)  
+   - WHEN `writePoliciestoR2ByTitle` runs  
+   - THEN each policy is written to `policies/{fileNo}/policy.md` with YAML front matter (`title`, `fileNo`, `savedAt`, `lastUpdated`) and sections: `## 기본 정보`, `## 링크`, optionally `## 정책 내용`.  
+   - AND exports succeed even if preview content is absent.
 
-### AC-8: Error Handling
-- **GIVEN** any step fails (fetch, parse, save)
-- **WHEN** the error occurs
-- **THEN** the worker logs detailed error information
-- **AND** throws the error to fail the cron execution
-- **AND** does not save partial/corrupted data
+8. **AC-8: Legacy Snapshot JSON**  
+   - GIVEN the run date (KST)  
+   - WHEN `writeLinksToR2` executes  
+   - THEN it writes a JSON snapshot to `policy/{pageKey}/{yyyy}_{mm}_{dd}_links.json` unless an object already exists, in which case it logs a skip and returns without error.
+
+9. **AC-9: Observability & Logging**  
+   - GIVEN the worker runs under cron  
+   - WHEN each phase completes  
+   - THEN logs include phase banners, counts of parsed policies, KV sync stats, per-policy export counts, snapshot status, duration, and structured error details on failure.
+
+10. **AC-10: Failure Propagation**  
+    - GIVEN a critical error occurs in fetch, parse, KV sync, or legacy snapshot write  
+    - WHEN the error is thrown  
+    - THEN the worker rethrows after logging and the run is marked as failed, preventing partial metadata from being recorded.
 
 ## Data Schema
 
-### Link Object
 ```typescript
 interface PolicyLink {
-  fileNo: string;        // Unique identifier (e.g., "868")
-  previewUrl: string;    // Full preview URL
-  downloadUrl: string;   // Full download URL
-  title?: string;        // Optional document title
+  fileNo: string;
+  previewUrl: string;
+  downloadUrl: string;
+  title?: string;
+}
+
+interface PolicyMarkdownFrontMatter {
+  title: string;
+  fileNo: string;
+  savedAt: string;      // ISO-8601
+  lastUpdated: string;  // ISO-8601
+}
+
+interface SnapshotPayload {
+  timestamp: string;
+  pageKey: string;
+  count: number;
+  links: PolicyLink[];
 }
 ```
 
-### R2 File Content
-```typescript
-{
-  timestamp: string;     // ISO-8601 format
-  pageKey: string;       // Page identifier (e.g., "392")
-  count: number;         // Number of links
-  links: PolicyLink[];   // Array of links
-}
-```
+- KV schema follows `.spec/kv-sync-algorithm.spec.md` (`policy:{title}`, `metadata:sync:lastRun`, optional `queue:{title}`).
+- Markdown body contains localized timestamps formatted with `ko-KR` locale.
 
 ## Non-Functional Requirements
 
-### Performance
-- Total execution time < 10 seconds under normal conditions
-- Timeout per fetch attempt: 5 seconds
-- Maximum retries: 3
+- **Performance**: End-to-end execution under 10 seconds given <150 policies; preview fetch timeout defaults to 10s.  
+- **Reliability**: Retry backoff begins at 1s with multiplier 2 and caps at 10s; KV and R2 operations surface errors immediately.  
+- **Idempotency**: Markdown exports overwrite existing objects; JSON snapshot skips if already present for the day.  
+- **Security**: `BEARER_TOKEN` never logged or persisted; errors redact token contents.  
+- **Localization**: Markdown sections and labels remain in Korean to match downstream readers.
 
-### Reliability
-- Retry on: HTTP 429, 503, timeout, network errors
-- No retry on: HTTP 404, 400, parse errors
-- Idempotent: safe to run multiple times per day
+## Environment Variables & Secrets
 
-### Observability
-- Structured logging at each stage
-- Success/failure statistics
-- Execution duration tracking
-- Error details (message, stack trace)
-
-### Storage
-- File path format: `policy/{pageKey}/YYYY_MM_DD_links.json`
-- Bucket: `knue-vectorstore` (shared with RSS parser)
-- Retention: Indefinite (manual cleanup if needed)
-
-## Environment Variables
-
-| Variable | Required | Example | Description |
-|----------|----------|---------|-------------|
-| `POLICY_PAGE_URL` | Yes | `https://www.knue.ac.kr/www/contents.do?key=392` | Full URL of policy page |
-| `POLICY_PAGE_KEY` | Yes | `392` | Page key for URL filtering |
-| `POLICY_STORAGE` | Yes | R2Bucket binding | R2 bucket for storage |
+| Name | Type | Required | Example | Notes |
+|------|------|----------|---------|-------|
+| `POLICY_PAGE_URL` | string | ✅ | `https://www.knue.ac.kr/www/contents.do?key=392` | Source HTML |
+| `POLICY_PAGE_KEY` | string | ✅ | `392` | Used to filter links |
+| `PREVIEW_PARSER_BASE_URL` | string | ✅ | `https://knue-www-preview-parser-cf...` | HTTPS endpoint expecting `atchmnflNo` |
+| `BEARER_TOKEN` | secret | ✅ | *(Workers secret)* | Required for preview fetch |
+| `POLICY_STORAGE` | R2 bucket binding | ✅ | `knue-vectorstore` | Holds Markdown + JSON |
+| `POLICY_REGISTRY` | KV namespace binding | ✅ | `policy-registry` | Stores canonical records |
 
 ## Test Requirements
 
-### Unit Tests
-- [x] Link parsing from HTML
-- [x] Preview URL generation
-- [x] Download URL generation
-- [x] Duplicate removal
-- [x] Title extraction
-- [x] R2 write with correct structure
-- [x] R2 skip on existing file
-- [x] Date-based path generation
-
-### Integration Tests
-- [x] Full workflow (fetch → parse → enrich → save)
-- [x] HTTP request rejection
-- [x] Duplicate execution skip
-- [x] Fetch error handling
-- [x] Title enrichment in workflow
-
-### Coverage Target
-- Minimum: 80%
-- Current: 100% (20/20 tests passing)
+- **Unit**: parser, preview fetcher, formatter, KV manager, synchronizer, R2 writers.
+- **Integration**: fixture-driven scheduled run verifying KV sync, Markdown export count, legacy JSON skip behavior, and preview enrichment.
+- **Regression**: duplicate cron execution within same day results in skipped JSON but refreshed Markdown.
+- **Mocks**: Provide deterministic mock clock and random seeds where required; stub preview API responses.
 
 ## Out of Scope
 
-- Document content download (future enhancement)
-- Document content parsing/vectorization (separate project)
-- Historical change tracking (single snapshot per day)
-- Multi-page support (only key=392)
-- Authentication/authorization (public page)
+- Downloading or persisting full PDFs/content beyond preview API payloads.
+- Multi-page crawling (only `POLICY_PAGE_KEY` 392 supported).
+- Historical diffing beyond daily snapshot retention.

@@ -1,68 +1,32 @@
-# Tasks - Policy Link Collection Worker
+# Task Index — knue-www-policy-parser-cf
 
-**Project**: `knue-www-policy-parser-cf`
-**Created**: 2025-10-19
+**Project**: `knue-www-policy-parser-cf`  
+**Maintainer**: kadragon  
+**Last Updated**: 2025-10-19
 
-## Current Tasks
+## Active Task Ledger
 
-| Task ID | Title | Status | Date |
-|---------|-------|--------|------|
-| `init-policy-parser` | Initialize Policy Link Collection Worker | ✅ Completed | 2025-10-19 |
+| Task ID | Title | Status | Last Update |
+|---------|-------|--------|-------------|
+| `init-policy-parser` | Daily policy sync worker | ✅ Completed | 2025-10-19 |
 
-## Task Documents
+## Task Document Map
 
-### Active Task: `init-policy-parser`
+- **RESEARCH.md** — Source analysis, preview API contract, downstream requirements.  
+- **SPEC-DELTA.md** — Acceptance criteria (cron, fetch, KV sync, Markdown export, preview integration).  
+- **PLAN.md** — Phase breakdown aligned with RSP-I workflow.  
+- **PROGRESS.md** — Timestamped implementation log with metrics.  
+- **TASK_SUMMARY.md** — High-level deliverables, validation, next actions.
 
-1. **[RESEARCH.md](./RESEARCH.md)** - Discovery and analysis
-   - Policy page structure analysis
-   - Link pattern identification
-   - Architecture decisions
-   - Infrastructure reuse strategy
+## Execution Snapshot
 
-2. **[SPEC-DELTA.md](./SPEC-DELTA.md)** - Requirements and acceptance criteria
-   - 8 acceptance criteria
-   - Data schemas
-   - Non-functional requirements
-   - Test requirements
+- Cron schedule: `0 16 * * *` (daily 01:00 KST).  
+- Outputs: per-policy Markdown (`policies/{fileNo}/policy.md`) + legacy JSON snapshot (`policy/{pageKey}/{yyyy}_{mm}_{dd}_links.json`).  
+- Registry: Cloudflare KV `policy-registry` retains canonical policy records + queue entries.  
+- Preview integration: Bearer-authenticated API enriches Markdown with summaries/content.  
+- Quality gates: ESLint, TypeScript `--noEmit`, Vitest unit + integration suites (all passing locally).
 
-3. **[PLAN.md](./PLAN.md)** - Implementation plan
-   - 5 phases: Setup → Implementation → Config → Testing → Documentation
-   - TDD approach per component
-   - Rollback plan
-   - Success metrics
-
-4. **[PROGRESS.md](./PROGRESS.md)** - Detailed implementation log
-   - Timestamped actions
-   - Code implementation notes
-   - Test results
-   - Issue resolution
-
-5. **[TASK_SUMMARY.md](./TASK_SUMMARY.md)** - Executive summary
-   - Objectives and deliverables
-   - Key decisions
-   - Technical highlights
-   - Integration points
-
-## Quick Reference
-
-### What Was Built
-A Cloudflare Worker that collects policy document links from KNUE website weekly and stores them in R2 as JSON.
-
-### Key Stats
-- **Tests**: 20/20 passing
-- **Files**: 5 source + 3 test
-- **Links Collected**: 96 policy documents
-- **Schedule**: Weekly (Sunday 11AM KST)
-
-### Next Steps
-1. Deploy: `npm run deploy`
-2. Monitor first cron execution
-3. Verify R2 output
-
-## Archive
-
-No archived tasks yet.
-
-## Notes
-
-This task represents the initial project setup. Future enhancements (content download, vectorization) will be tracked as separate tasks.
+## Next Steps
+1. Deploy worker via `npm run deploy` after confirming production secrets.  
+2. Observe first cron run on 2025-10-20T01:00:00+09:00 via Cloudflare logs.  
+3. Coordinate with downstream vectorizer on Markdown ingestion cadence.

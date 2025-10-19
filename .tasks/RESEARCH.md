@@ -1,104 +1,56 @@
-# Research - KNUE Policy Link Collection
+# Research Log - KNUE Policy Metadata Pipeline
 
-**Task ID**: `init-policy-parser`
-**Date**: 2025-10-19
+**Task ID**: `init-policy-parser`  
+**Date**: 2025-10-19  
 **Status**: Completed
 
-## Context
+## Problem Statement
+Collect authoritative policy metadata from `https://www.knue.ac.kr/www/contents.do?key=392`, normalize it, and distribute it to downstream services (KV registry, Markdown exports, legacy JSON snapshots).
 
-User requested to create a new project to collect `previewUrl` links from a specific KNUE policy page, separate from the existing RSS parser project.
+## Source Analysis
 
-## Target Analysis
+### Policy Page Structure
+- HTML contains `<a>` elements pointing to `previewMenuCntFile.do?key=392&fileNo={n}`.  
+- Download endpoints follow `/downloadContentsFile.do?key=392&fileNo={n}`.  
+- Titles sit inside `<p class="text_left">` blocks located near the link cluster (≤500 chars apart).
+- Fixture stored as `fixtures/policy-page-sample.html` (3,228 lines, captured 2025-10-19).
 
-### Policy Page
-- **URL**: `https://www.knue.ac.kr/www/contents.do?key=392`
-- **Purpose**: University regulations and policy documents page
-- **Content Type**: HTML page with embedded file links
+### Volume & Variability
+- Fixture reveals 96 unique `fileNo` values; expect ~100 policies.  
+- New policies append to the page; removals rare but possible (necessitates delete detection).
+- HTML layout has remained stable across current and archival snapshots.
 
-### Link Pattern Discovery
+### Preview Parser Contract
+- Existing worker `knue-www-preview-parser-cf` exposes GET endpoint expecting `atchmnflNo` query.  
+- Requires `Authorization: Bearer <token>`.  
+- Response includes fields `{ title?, summary?, content?, ... }`.  
+- Average response size <100 KB; 1–2 requests per policy acceptable with `fetchContent` flag.
 
-Through page analysis (via curl), identified consistent URL patterns:
+## Downstream Requirements
 
-#### Preview Links
-```
-./previewMenuCntFile.do?key=392&fileNo=868
-./previewMenuCntFile.do?key=392&fileNo=1345
-./previewMenuCntFile.do?key=392&fileNo=1459
-```
+| Consumer | Need | Mapping |
+|----------|------|---------|
+| KV Registry (`policy-registry`) | Canonical title → fileNo map | Add/update/delete with metadata |
+| Markdown exports (R2) | Human-readable policy bundle | YAML front matter + localized timestamps + preview content |
+| Legacy consumers | JSON snapshot identical to prior worker | Keep path `policy/{pageKey}/{yyyy}_{mm}_{dd}_links.json` |
+| Vectorizer service | Markdown ingestion | Requires Markdown path stable per `fileNo` |
 
-#### Download Links
-```
-/downloadContentsFile.do?key=392&fileNo=868
-/downloadContentsFile.do?key=392&fileNo=1345
-/downloadContentsFile.do?key=392&fileNo=1459
-```
+## Technical Constraints & Decisions
 
-### Pattern Structure
-
-Each policy document has:
-- **Unique identifier**: `fileNo` (e.g., 868, 1345, 1459)
-- **Page context**: `key` (always 392 for this page)
-- **Dual access**: Preview and download endpoints
-- **Associated title**: Text label preceding the links (e.g., "한국교원대학교 설치령")
-
-### Extraction Strategy
-
-**Regular Expression Approach**:
-- Pattern: `previewMenuCntFile\.do\?key=(\d+)&fileNo=(\d+)`
-- Captures both `key` and `fileNo` parameters
-- Deduplication required (links appear multiple times in HTML)
-
-**Title Extraction**:
-- Pattern: `<p class="text_left">([^<]+)</p>` followed by `fileNo={fileNo}` within 500 chars
-- Provides human-readable document names
-
-### Data Volume
-
-Initial analysis shows:
-- **96 unique policy documents** on the page
-- Each with preview + download URL pair
-- Majority have associated titles
-
-## Comparison with Existing Projects
-
-### knue-www-rss-parser-cf
-- **Purpose**: Parse RSS feeds from multiple boards
-- **Frequency**: Daily (cron)
-- **Output**: Markdown files per article
-- **Trigger**: Scheduled
-
-### knue-www-preview-parser-cf
-- **Purpose**: Parse attachment previews
-- **Trigger**: On-demand (API)
-- **Output**: JSON response
-
-### New Project (knue-www-policy-parser-cf)
-- **Purpose**: Collect policy document links
-- **Frequency**: Weekly (regulations change infrequently)
-- **Output**: JSON file with link inventory
-- **Trigger**: Scheduled
-
-## Architecture Decision
-
-**Rationale for Separate Project**:
-1. Different domain (policies vs. board posts)
-2. Different frequency (weekly vs. daily)
-3. Different output format (link collection vs. content conversion)
-4. Single Responsibility Principle
-5. Consistent with existing pattern (preview-parser is also separate)
-
-## Infrastructure Reuse
-
-From `knue-www-rss-parser-cf`:
-- `.agents/` policy structure
-- TypeScript/ESLint/Vitest configuration
-- R2 storage utilities (adapted)
-- Test infrastructure patterns
-- Husky pre-commit hooks
-- Same R2 bucket (`knue-vectorstore`)
+- **Primary key**: Use `title` for KV registry; it remains consistent between revisions.  
+- **Idempotency**: Use `bucket.head` to skip duplicate JSON writes; Markdown overwrites allowed (captures new preview content).  
+- **Cron Frequency**: Daily at 01:00 KST to capture regulatory updates promptly while bounding resource usage.  
+- **Retries**: HTML fetch uses exponential backoff (1s → 2s → 4s). Preview fetch limited to 2 retries to avoid long tail.  
+- **Localization**: Markdown headings remain Korean to align with knowledge-base usage.
 
 ## Evidence
 
-- Page HTML captured to `fixtures/policy-page-sample.html` (3228 lines)
-- Verified 96 unique fileNo values extracted
-- Confirmed title extraction for majority of documents
+- Fixture extraction using `curl -s` recorded in repository.  
+- Vitest unit and integration suites confirm parser & exporter behavior using mocks.  
+- Manual preview API test (2025-10-19) returned sample content with expected schema (see `test/preview.test.ts`).
+
+## Open Questions / Future Work
+
+1. Should we persist complete PDFs to R2 alongside Markdown? (Deferred.)  
+2. Need for multi-page crawling if KNUE splits policies by category? (Monitor page updates.)  
+3. Evaluate caching strategy for preview API to reduce outbound calls if content unchanged.
