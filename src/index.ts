@@ -67,13 +67,15 @@ export default {
       const kvManager = new KVManager(env.POLICY_REGISTRY);
       const synchronizer = new PolicySynchronizer(kvManager);
 
-      // Convert enriched links to API policy format
-      const apiPolicies: ApiPolicy[] = enrichedLinks.map(link => ({
-        title: link.title || 'Unknown',
-        fileNo: link.fileNo,
-        previewUrl: link.previewUrl,
-        downloadUrl: link.downloadUrl
-      }));
+      // Convert enriched links to API policy format (filter out policies without titles)
+      const apiPolicies: ApiPolicy[] = enrichedLinks
+        .filter(link => link.title && link.title.trim() !== '')
+        .map(link => ({
+          title: link.title!,
+          fileNo: link.fileNo,
+          previewUrl: link.previewUrl,
+          downloadUrl: link.downloadUrl
+        }));
 
       // Validate policies
       const validPolicies = synchronizer.validateAndFilterPolicies(apiPolicies);
