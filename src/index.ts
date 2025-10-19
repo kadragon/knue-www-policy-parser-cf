@@ -91,9 +91,7 @@ export default {
         added: syncResult.stats.added,
         updated: syncResult.stats.updated,
         deleted: syncResult.stats.deleted,
-        status: syncResult.stats.added + syncResult.stats.updated + syncResult.stats.deleted > 0
-          ? 'success'
-          : 'success',
+        status: 'success',
         errorCount: 0
       };
       await kvManager.setSyncMetadata(syncMetadata);
