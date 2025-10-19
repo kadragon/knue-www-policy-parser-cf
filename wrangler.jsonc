@@ -1,0 +1,25 @@
+{
+  "name": "knue-www-policy-parser-cf",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-10-17",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "placement": {
+    "mode": "smart"
+  },
+  "triggers": {
+    "crons": ["0 2 * * 0"]
+  },
+  "r2_buckets": [
+    {
+      "binding": "POLICY_STORAGE",
+      "bucket_name": "knue-vectorstore"
+    }
+  ],
+  "vars": {
+    "POLICY_PAGE_URL": "https://www.knue.ac.kr/www/contents.do?key=392",
+    "POLICY_PAGE_KEY": "392"
+  }
+}
