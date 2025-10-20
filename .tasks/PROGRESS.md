@@ -104,8 +104,16 @@
 - ✅ Set removal date: 2026-01-20 (90-day transition)
 - ✅ All 148 tests passing
 
+### Phase 11: Documentation ✅ COMPLETE
+**Duration**: ~45 minutes
+
+- ✅ Refreshed `README.md` to describe GitHub commit diff workflow, environment variables, and migration notes.
+- ✅ Updated `SPEC-POLICY-COLLECTOR-001` to v2.0.0 with GitHub-driven acceptance criteria.
+- ✅ Revised `.tasks/TASK_SUMMARY.md` to capture new architecture, validation status, and remaining deployment work.
+- ✅ Logged documentation completion in `.tasks/PROGRESS.md` and kept `_deprecated/` guidance intact.
+
 ### Remaining Phases
-- Phase 11-12: Pending
+- Phase 12: Deployment & Monitoring — Pending
 
 ---
 
@@ -120,10 +128,9 @@
 
 ## Next Steps
 
-1. ✅ Complete Phase 7-8 (Test Migration & Environment Configuration)
-2. ✅ Commit Phase 7-8 changes (commit: 58b58c8)
-3. ✅ Complete Phase 9 (Testing & Validation)
-4. 📋 Proceed to Phase 10: Deprecation & Cleanup
+1. ✅ Complete documentation refresh (Phase 11).
+2. 📋 Prepare deployment dry-run (`wrangler dev --test-scheduled`) and production rollout (Phase 12).
+3. 📋 Define monitoring checklist for first three cron executions post-deploy.
 
 ---
 
@@ -149,9 +156,9 @@
 | Phase 8: Environment Config | 15m | 30m | ✅ |
 | Phase 9: Testing | 2h | 30m | ✅ |
 | Phase 10: Deprecation | 30m | 20m | ✅ |
-| Phase 11: Documentation | 1h | - | 📋 |
+| Phase 11: Documentation | 1h | 45m | ✅ |
 | Phase 12: Deployment | 30m | - | 📋 |
-| **Total** | **~11.25h** | **6.75h** | **~60% complete** |
+| **Total** | **~11.25h** | **7.5h** | **~75% complete** |
 
 ---
 
@@ -166,7 +173,8 @@
 - ✅ Phase 8: Environment Configuration complete (wrangler.jsonc + .env.example)
 - ✅ Phase 9: Testing & Validation complete (all 148 tests passing)
 - ✅ Phase 10: Deprecation & Cleanup complete (legacy modules moved to _deprecated)
-- 📋 Phases 11-12: Pending
+- ✅ Phase 11: Documentation complete (README, spec, task docs updated)
+- 📋 Phase 12: Deployment & Monitoring pending
 
 **Current Test Status**:
 - Core functionality tests: **141 passing** ✅
@@ -176,9 +184,7 @@
 - Workflow tests: **5 passing** ✅
 - Total: **148 passing, 0 failing** ✅
 
-**Latest**: Phase 10 complete and committed (20c9b46)
-- Legacy modules moved to `src/_deprecated/` for 90-day transition
-- Deprecation warnings and migration guides added
-- All imports updated (r2-writer.ts + 4 test files)
-- Removal date set: 2026-01-20
-- Ready for Phase 11: Documentation
+**Latest**: Phase 11 documentation refresh staged (no deploy yet)
+- README, specs, and task summary now describe GitHub-based sync model
+- All 148 tests still passing (no runtime changes)
+- Preparing Phase 12 deployment checklist and monitoring plan
