@@ -4,23 +4,31 @@
  * Tests for KVManager CRUD operations
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { KVManager } from '../src/kv/manager';
 import type { PolicyEntry, SyncMetadata, QueueEntry } from '../src/kv/types';
 
 // Mock KVNamespace implementation
 class MockKVNamespace {
   private store: Map<string, string> = new Map();
+  public failPutKeys: Set<string> = new Set();
+  public failDeleteKeys: Set<string> = new Set();
 
   async get(key: string, options?: any): Promise<string | null> {
     return this.store.get(key) || null;
   }
 
   async put(key: string, value: string, options?: any): Promise<void> {
+    if (this.failPutKeys.has(key)) {
+      throw new Error(`Mock put failure for key "${key}"`);
+    }
     this.store.set(key, value);
   }
 
   async delete(key: string): Promise<void> {
+    if (this.failDeleteKeys.has(key)) {
+      throw new Error(`Mock delete failure for key "${key}"`);
+    }
     this.store.delete(key);
   }
 
@@ -320,6 +328,122 @@ describe('KVManager', () => {
       const retrieved = await kvManager.getPolicyByName('학칙');
 
       expect(retrieved).toEqual(policy);
+    });
+  });
+
+  describe('Batch Operations', () => {
+    it('should process policy entries in batches without exceeding limits', async () => {
+      const policies: PolicyEntry[] = Array.from({ length: 120 }).map((_, index) => ({
+        policyName: `policy-${index}`,
+        title: `정책 ${index}`,
+        status: 'active',
+        lastUpdated: new Date().toISOString(),
+        sha: `sha-${index}`,
+        path: `policies/policy-${index}.md`
+      }));
+
+      await kvManager.setPolicyEntries(policies);
+
+      const storedPolicies = await kvManager.getAllPolicies();
+      expect(storedPolicies.size).toBe(120);
+      expect(storedPolicies.get('policy-0')).toEqual(policies[0]);
+      expect(storedPolicies.get('policy-119')).toEqual(policies[119]);
+    });
+
+    it('should surface failing policyName when batch write fails', async () => {
+      const policies: PolicyEntry[] = Array.from({ length: 10 }).map((_, index) => ({
+        policyName: `policy-${index}`,
+        title: `정책 ${index}`,
+        status: 'active',
+        lastUpdated: new Date().toISOString(),
+        sha: `sha-${index}`,
+        path: `policies/policy-${index}.md`
+      }));
+
+      mockKVNamespace.failPutKeys.add('policy:policy-5');
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      let thrownError: unknown;
+      try {
+        await kvManager.setPolicyEntries(policies);
+      } catch (error) {
+        thrownError = error;
+      }
+
+      expect(thrownError).toBeInstanceOf(AggregateError);
+      const aggregateError = thrownError as AggregateError;
+      expect(aggregateError.errors).toHaveLength(1);
+      expect(aggregateError.message).toContain('Failed to write policy entries');
+
+      const errorLogs = consoleSpy.mock.calls.map(call => call[0]);
+      expect(errorLogs.some(log => typeof log === 'string' && log.includes('policyName "policy-5"'))).toBe(true);
+
+      const successfulPolicy = await kvManager.getPolicyByName('policy-4');
+      expect(successfulPolicy).toEqual(policies[4]);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should surface failing policyName when batch delete fails', async () => {
+      const policies: PolicyEntry[] = Array.from({ length: 6 }).map((_, index) => ({
+        policyName: `policy-${index}`,
+        title: `정책 ${index}`,
+        status: 'active',
+        lastUpdated: new Date().toISOString(),
+        sha: `sha-${index}`,
+        path: `policies/policy-${index}.md`
+      }));
+
+      await kvManager.setPolicyEntries(policies);
+      mockKVNamespace.failDeleteKeys.add('policy:policy-3');
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      let thrownError: unknown;
+      try {
+        await kvManager.deletePoliciesByNames(policies.map(p => p.policyName));
+      } catch (error) {
+        thrownError = error;
+      }
+
+      expect(thrownError).toBeInstanceOf(AggregateError);
+      const errorLogs = consoleSpy.mock.calls.map(call => call[0]);
+      expect(errorLogs.some(log => typeof log === 'string' && log.includes('policyName "policy-3"'))).toBe(true);
+
+      // Other policies may be deleted; verify the failing one still exists
+      const failedPolicy = await kvManager.getPolicyByName('policy-3');
+      expect(failedPolicy).toEqual(policies[3]);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should surface failing policyName when enqueue batch fails', async () => {
+      const entries: QueueEntry[] = Array.from({ length: 8 }).map((_, index) => ({
+        policyName: `policy-${index}`,
+        sha: `sha-${index}`,
+        operation: index % 2 === 0 ? 'add' : 'update',
+        retryCount: 0,
+        createdAt: new Date().toISOString(),
+        errorMessage: null
+      }));
+
+      mockKVNamespace.failPutKeys.add('queue:policy-6');
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      let thrownError: unknown;
+      try {
+        await kvManager.enqueueMultiple(entries);
+      } catch (error) {
+        thrownError = error;
+      }
+
+      expect(thrownError).toBeInstanceOf(AggregateError);
+      const errorLogs = consoleSpy.mock.calls.map(call => call[0]);
+      expect(errorLogs.some(log => typeof log === 'string' && log.includes('policy "policy-6"'))).toBe(true);
+
+      const successfulEntry = await kvManager.getQueueEntry('policy-5');
+      expect(successfulEntry).toEqual(entries[5]);
+
+      consoleSpy.mockRestore();
     });
   });
 

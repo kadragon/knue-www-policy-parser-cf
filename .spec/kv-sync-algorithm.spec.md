@@ -356,7 +356,8 @@ interface SyncResult {
 
 - All timestamps use ISO 8601 format with timezone
 - KV operations are atomic; no transactions needed for simple read-write
-- Consider batching KV operations to avoid rate limits
+- Batch KV operations in chunks of ≤50 items and execute each batch concurrently via `Promise.allSettled`
+- On partial failures, log each affected `policyName` (or queue key) and throw an aggregated error describing the batch
 - Metadata should be written last to ensure atomicity of sync
 - Commit SHA tracking enables incremental diff detection (only process changed files)
 - On first run (no previous commit), all files are treated as "added"

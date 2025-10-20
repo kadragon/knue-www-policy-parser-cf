@@ -18,6 +18,8 @@ const KEY_PREFIX = {
   DEAD_LETTER: 'dead-letter:'
 };
 
+const MAX_BATCH_SIZE = 50;
+
 export class KVManager {
   constructor(private namespace: KVNamespace) {}
 
@@ -109,17 +111,30 @@ export class KVManager {
    * v2.0.0: Uses policyName as key
    */
   async setPolicyEntries(policies: PolicyEntry[]): Promise<void> {
-    for (const policy of policies) {
-      const key = `${KEY_PREFIX.POLICY}${policy.policyName}`;
-      const value = JSON.stringify(policy);
-
-      try {
-        await this.namespace.put(key, value);
-      } catch (error) {
-        console.error(`Failed to write policy entry for policyName "${policy.policyName}":`, error);
-        throw error;
-      }
+    if (policies.length === 0) {
+      return;
     }
+
+    const operations = policies.map(policy => ({
+      policy,
+      key: `${KEY_PREFIX.POLICY}${policy.policyName}`,
+      value: JSON.stringify(policy)
+    }));
+
+    await this.runBatchedOperations(
+      operations,
+      MAX_BATCH_SIZE,
+      async operation => {
+        await this.namespace.put(operation.key, operation.value);
+      },
+      (operation, error, batchIndex) => {
+        console.error(
+          `Failed to write policy entry for policyName "${operation.policy.policyName}" (batch ${batchIndex}):`,
+          error
+        );
+      },
+      'write policy entries'
+    );
   }
 
   /**
@@ -144,16 +159,29 @@ export class KVManager {
    * v2.0.0: Changed from deletePoliciesByTitles to deletePoliciesByNames
    */
   async deletePoliciesByNames(policyNames: string[]): Promise<void> {
-    for (const policyName of policyNames) {
-      const key = `${KEY_PREFIX.POLICY}${policyName}`;
-
-      try {
-        await this.namespace.delete(key);
-      } catch (error) {
-        console.error(`Failed to delete policy entry for policyName "${policyName}":`, error);
-        throw error;
-      }
+    if (policyNames.length === 0) {
+      return;
     }
+
+    const operations = policyNames.map(policyName => ({
+      policyName,
+      key: `${KEY_PREFIX.POLICY}${policyName}`
+    }));
+
+    await this.runBatchedOperations(
+      operations,
+      MAX_BATCH_SIZE,
+      async operation => {
+        await this.namespace.delete(operation.key);
+      },
+      (operation, error, batchIndex) => {
+        console.error(
+          `Failed to delete policy entry for policyName "${operation.policyName}" (batch ${batchIndex}):`,
+          error
+        );
+      },
+      'delete policy entries'
+    );
   }
 
   /**
@@ -238,17 +266,30 @@ export class KVManager {
    * v2.0.0: Uses policyName as key
    */
   async enqueueMultiple(entries: QueueEntry[]): Promise<void> {
-    for (const entry of entries) {
-      const key = `${KEY_PREFIX.QUEUE}${entry.policyName}`;
-      const value = JSON.stringify(entry);
-
-      try {
-        await this.namespace.put(key, value);
-      } catch (error) {
-        console.error(`Failed to enqueue policy "${entry.policyName}" for processing:`, error);
-        throw error;
-      }
+    if (entries.length === 0) {
+      return;
     }
+
+    const operations = entries.map(entry => ({
+      entry,
+      key: `${KEY_PREFIX.QUEUE}${entry.policyName}`,
+      value: JSON.stringify(entry)
+    }));
+
+    await this.runBatchedOperations(
+      operations,
+      MAX_BATCH_SIZE,
+      async operation => {
+        await this.namespace.put(operation.key, operation.value);
+      },
+      (operation, error, batchIndex) => {
+        console.error(
+          `Failed to enqueue policy "${operation.entry.policyName}" for processing (batch ${batchIndex}):`,
+          error
+        );
+      },
+      'enqueue policies for processing'
+    );
   }
 
   /**
@@ -356,5 +397,36 @@ export class KVManager {
     }
 
     return entries;
+  }
+
+  private async runBatchedOperations<T>(
+    items: T[],
+    batchSize: number,
+    operation: (item: T) => Promise<void>,
+    onError: (item: T, error: unknown, batchIndex: number) => void,
+    summary: string
+  ): Promise<void> {
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      const batchIndex = Math.floor(i / batchSize);
+      const results = await Promise.allSettled(batch.map(item => operation(item)));
+
+      const failures = results
+        .map((result, index) => (result.status === 'rejected' ? { item: batch[index], reason: result.reason } : null))
+        .filter((value): value is { item: T; reason: unknown } => value !== null);
+
+      if (failures.length > 0) {
+        console.error(
+          `Failed to ${summary} (batch ${batchIndex}): ${failures.length}/${batch.length} operations failed`
+        );
+        failures.forEach(({ item, reason }) => onError(item, reason, batchIndex));
+
+        const aggregateError = new AggregateError(
+          failures.map(failure => failure.reason),
+          `Failed to ${summary} (batch ${batchIndex})`
+        );
+        throw aggregateError;
+      }
+    }
   }
 }

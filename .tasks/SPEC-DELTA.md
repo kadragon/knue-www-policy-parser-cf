@@ -61,6 +61,8 @@ This specification defines the migration from preview API-based policy collectio
 - AND changed markdown content updates existing entries
 - AND missing `policyName` entries are deleted from KV
 - AND sync metadata includes commit SHA tracking
+- AND bulk KV writes are executed in batches of ≤50 entries, using concurrent execution per batch
+- AND partial failures surface the failing `policyName` values in logs and bubble an aggregated error
 - **CHANGED**: Primary key is now `policyName` instead of `fileNo`
 - **CHANGED**: KV key format: `policy:{policyName}` (was `policy:{title}`)
 
