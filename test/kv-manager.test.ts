@@ -61,49 +61,52 @@ describe('KVManager', () => {
   describe('Policy Entry Operations', () => {
     it('should set and get a policy entry', async () => {
       const policy: PolicyEntry = {
-        title: '학칙',
-        fileNo: '868',
+        policyName: '학칙',
+        title: '한국교원대학교 학칙',
         status: 'active',
         lastUpdated: new Date().toISOString(),
-        previewUrl: 'https://example.com/preview/868',
-        downloadUrl: 'https://example.com/download/868'
+        sha: 'abc123def456',
+        path: 'policies/학칙.md',
+        fileNo: '868'
       };
 
       await kvManager.setPolicyEntry(policy);
-      const retrieved = await kvManager.getPolicyByTitle('학칙');
+      const retrieved = await kvManager.getPolicyByName('학칙');
 
       expect(retrieved).toEqual(policy);
     });
 
     it('should return null for non-existent policy', async () => {
-      const retrieved = await kvManager.getPolicyByTitle('존재하지않는규정');
+      const retrieved = await kvManager.getPolicyByName('존재하지않는규정');
       expect(retrieved).toBeNull();
     });
 
     it('should set multiple policy entries', async () => {
       const policies: PolicyEntry[] = [
         {
-          title: '학칙',
-          fileNo: '868',
+          policyName: '학칙',
+          title: '한국교원대학교 학칙',
           status: 'active',
           lastUpdated: new Date().toISOString(),
-          previewUrl: 'https://example.com/preview/868',
-          downloadUrl: 'https://example.com/download/868'
+          sha: 'abc123def456',
+          path: 'policies/학칙.md',
+          fileNo: '868'
         },
         {
-          title: '규정1',
-          fileNo: '869',
+          policyName: '규정1',
+          title: '규정 1',
           status: 'active',
           lastUpdated: new Date().toISOString(),
-          previewUrl: 'https://example.com/preview/869',
-          downloadUrl: 'https://example.com/download/869'
+          sha: 'def456ghi789',
+          path: 'policies/규정1.md',
+          fileNo: '869'
         }
       ];
 
       await kvManager.setPolicyEntries(policies);
 
-      const retrieved1 = await kvManager.getPolicyByTitle('학칙');
-      const retrieved2 = await kvManager.getPolicyByTitle('규정1');
+      const retrieved1 = await kvManager.getPolicyByName('학칙');
+      const retrieved2 = await kvManager.getPolicyByName('규정1');
 
       expect(retrieved1).toEqual(policies[0]);
       expect(retrieved2).toEqual(policies[1]);
@@ -112,20 +115,22 @@ describe('KVManager', () => {
     it('should get all policies', async () => {
       const policies: PolicyEntry[] = [
         {
-          title: '학칙',
-          fileNo: '868',
+          policyName: '학칙',
+          title: '한국교원대학교 학칙',
           status: 'active',
           lastUpdated: new Date().toISOString(),
-          previewUrl: 'https://example.com/preview/868',
-          downloadUrl: 'https://example.com/download/868'
+          sha: 'abc123def456',
+          path: 'policies/학칙.md',
+          fileNo: '868'
         },
         {
-          title: '규정1',
-          fileNo: '869',
+          policyName: '규정1',
+          title: '규정 1',
           status: 'active',
           lastUpdated: new Date().toISOString(),
-          previewUrl: 'https://example.com/preview/869',
-          downloadUrl: 'https://example.com/download/869'
+          sha: 'def456ghi789',
+          path: 'policies/규정1.md',
+          fileNo: '869'
         }
       ];
 
@@ -139,46 +144,49 @@ describe('KVManager', () => {
 
     it('should delete a policy entry', async () => {
       const policy: PolicyEntry = {
-        title: '학칙',
-        fileNo: '868',
+        policyName: '학칙',
+        title: '한국교원대학교 학칙',
         status: 'active',
         lastUpdated: new Date().toISOString(),
-        previewUrl: 'https://example.com/preview/868',
-        downloadUrl: 'https://example.com/download/868'
+        sha: 'abc123def456',
+        path: 'policies/학칙.md',
+        fileNo: '868'
       };
 
       await kvManager.setPolicyEntry(policy);
-      await kvManager.deletePolicyByTitle('학칙');
+      await kvManager.deletePolicyByName('학칙');
 
-      const retrieved = await kvManager.getPolicyByTitle('학칙');
+      const retrieved = await kvManager.getPolicyByName('학칙');
       expect(retrieved).toBeNull();
     });
 
     it('should delete multiple policy entries', async () => {
       const policies: PolicyEntry[] = [
         {
-          title: '학칙',
-          fileNo: '868',
+          policyName: '학칙',
+          title: '한국교원대학교 학칙',
           status: 'active',
           lastUpdated: new Date().toISOString(),
-          previewUrl: 'https://example.com/preview/868',
-          downloadUrl: 'https://example.com/download/868'
+          sha: 'abc123def456',
+          path: 'policies/학칙.md',
+          fileNo: '868'
         },
         {
-          title: '규정1',
-          fileNo: '869',
+          policyName: '규정1',
+          title: '규정 1',
           status: 'active',
           lastUpdated: new Date().toISOString(),
-          previewUrl: 'https://example.com/preview/869',
-          downloadUrl: 'https://example.com/download/869'
+          sha: 'def456ghi789',
+          path: 'policies/규정1.md',
+          fileNo: '869'
         }
       ];
 
       await kvManager.setPolicyEntries(policies);
-      await kvManager.deletePoliciesByTitles(['학칙', '규정1']);
+      await kvManager.deletePoliciesByNames(['학칙', '규정1']);
 
-      const retrieved1 = await kvManager.getPolicyByTitle('학칙');
-      const retrieved2 = await kvManager.getPolicyByTitle('규정1');
+      const retrieved1 = await kvManager.getPolicyByName('학칙');
+      const retrieved2 = await kvManager.getPolicyByName('규정1');
 
       expect(retrieved1).toBeNull();
       expect(retrieved2).toBeNull();
@@ -212,12 +220,13 @@ describe('KVManager', () => {
   describe('Queue Entry Operations', () => {
     it('should enqueue a single entry', async () => {
       const entry: QueueEntry = {
-        title: '학칙',
-        fileNo: '868',
+        policyName: '학칙',
+        sha: 'abc123def456',
         operation: 'add',
         retryCount: 0,
         createdAt: new Date().toISOString(),
-        errorMessage: null
+        errorMessage: null,
+        fileNo: '868'
       };
 
       await kvManager.enqueueForProcessing(entry);
@@ -230,20 +239,22 @@ describe('KVManager', () => {
     it('should enqueue multiple entries', async () => {
       const entries: QueueEntry[] = [
         {
-          title: '학칙',
-          fileNo: '868',
+          policyName: '학칙',
+          sha: 'abc123def456',
           operation: 'add',
           retryCount: 0,
           createdAt: new Date().toISOString(),
-          errorMessage: null
+          errorMessage: null,
+          fileNo: '868'
         },
         {
-          title: '규정1',
-          fileNo: '869',
+          policyName: '규정1',
+          sha: 'def456ghi789',
           operation: 'update',
           retryCount: 0,
           createdAt: new Date().toISOString(),
-          errorMessage: null
+          errorMessage: null,
+          fileNo: '869'
         }
       ];
 
@@ -255,14 +266,15 @@ describe('KVManager', () => {
       expect(allEntries.get('규정1')).toEqual(entries[1]);
     });
 
-    it('should get queue entry by title', async () => {
+    it('should get queue entry by policyName', async () => {
       const entry: QueueEntry = {
-        title: '학칙',
-        fileNo: '868',
+        policyName: '학칙',
+        sha: 'abc123def456',
         operation: 'add',
         retryCount: 0,
         createdAt: new Date().toISOString(),
-        errorMessage: null
+        errorMessage: null,
+        fileNo: '868'
       };
 
       await kvManager.enqueueForProcessing(entry);
@@ -273,16 +285,17 @@ describe('KVManager', () => {
 
     it('should dequeue an entry', async () => {
       const entry: QueueEntry = {
-        title: '학칙',
-        fileNo: '868',
+        policyName: '학칙',
+        sha: 'abc123def456',
         operation: 'add',
         retryCount: 0,
         createdAt: new Date().toISOString(),
-        errorMessage: null
+        errorMessage: null,
+        fileNo: '868'
       };
 
       await kvManager.enqueueForProcessing(entry);
-      await kvManager.dequeueByTitle('학칙');
+      await kvManager.dequeueByName('학칙');
 
       const retrieved = await kvManager.getQueueEntry('학칙');
       expect(retrieved).toBeNull();
@@ -292,16 +305,19 @@ describe('KVManager', () => {
   describe('Data Persistence', () => {
     it('should preserve JSON structure in storage', async () => {
       const policy: PolicyEntry = {
+        policyName: '복잡한제목',
         title: '복잡한 제목 (특수문자: 한글, 숫자)',
-        fileNo: '12345',
         status: 'active',
         lastUpdated: '2025-10-19T16:00:00Z',
+        sha: 'abc123def456',
+        path: 'policies/복잡한제목.md',
+        fileNo: '12345',
         previewUrl: 'https://example.com/preview?param=value&other=123',
         downloadUrl: 'https://example.com/download?file=test.pdf'
       };
 
       await kvManager.setPolicyEntry(policy);
-      const retrieved = await kvManager.getPolicyByTitle('복잡한 제목 (특수문자: 한글, 숫자)');
+      const retrieved = await kvManager.getPolicyByName('복잡한제목');
 
       expect(retrieved?.fileNo).toBe('12345');
       expect(retrieved?.previewUrl).toContain('param=value');
@@ -309,16 +325,17 @@ describe('KVManager', () => {
 
     it('should handle unicode characters', async () => {
       const policy: PolicyEntry = {
+        policyName: '학칙',
         title: '한국교원대학교 학칙 (修正)',
-        fileNo: '868',
         status: 'active',
         lastUpdated: new Date().toISOString(),
-        previewUrl: 'https://example.com/preview/868',
-        downloadUrl: 'https://example.com/download/868'
+        sha: 'abc123def456',
+        path: 'policies/학칙.md',
+        fileNo: '868'
       };
 
       await kvManager.setPolicyEntry(policy);
-      const retrieved = await kvManager.getPolicyByTitle('한국교원대학교 학칙 (修正)');
+      const retrieved = await kvManager.getPolicyByName('학칙');
 
       expect(retrieved).toEqual(policy);
     });
@@ -329,7 +346,7 @@ describe('KVManager', () => {
       // Simulate corrupted data by directly manipulating mock store
       (mockKVNamespace as any).store.set('policy:corrupted', 'invalid json {');
 
-      const retrieved = await kvManager.getPolicyByTitle('corrupted');
+      const retrieved = await kvManager.getPolicyByName('corrupted');
       expect(retrieved).toBeNull();
     });
 

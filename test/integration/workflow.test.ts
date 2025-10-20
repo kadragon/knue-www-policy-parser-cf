@@ -12,10 +12,9 @@ describe('Policy Parser Integration', () => {
   let mockEnv: {
     POLICY_STORAGE: R2Bucket;
     POLICY_REGISTRY: KVNamespace;
-    POLICY_PAGE_URL: string;
-    POLICY_PAGE_KEY: string;
-    PREVIEW_PARSER_BASE_URL: string;
-    BEARER_TOKEN: string;
+    GITHUB_REPO: string;
+    GITHUB_BRANCH: string;
+    GITHUB_TOKEN?: string;
   };
   let storage: Map<string, { content: string; metadata: R2HTTPMetadata }>;
   let kvStorage: Map<string, string>;
@@ -25,10 +24,8 @@ describe('Policy Parser Integration', () => {
     kvStorage = new Map();
 
     mockEnv = {
-      POLICY_PAGE_URL: 'https://www.knue.ac.kr/www/contents.do?key=392',
-      POLICY_PAGE_KEY: '392',
-      PREVIEW_PARSER_BASE_URL: 'https://example.com/api/',
-      BEARER_TOKEN: 'test-bearer-token',
+      GITHUB_REPO: 'kadragon/knue-policy-hub',
+      GITHUB_BRANCH: 'main',
       POLICY_STORAGE: {
         head: async (key: string) => {
           return storage.has(key) ? ({ key } as R2Object) : null;
@@ -78,25 +75,70 @@ describe('Policy Parser Integration', () => {
       } as unknown as KVNamespace
     };
 
-    // Mock global fetch for policy page and preview API
+    // Mock global fetch for GitHub API (v3.0.0 - GitHub-based workflow)
     global.fetch = (async (url: RequestInfo | URL) => {
       const urlString = url.toString();
-      if (urlString.includes('contents.do?key=392')) {
-        return new Response(fixtureHTML, {
-          status: 200,
-          headers: { 'Content-Type': 'text/html; charset=utf-8' }
-        });
-      }
-      // Mock preview API responses
-      if (urlString.includes('example.com/api')) {
+
+      // Mock GitHub API: get latest commit
+      if (urlString.includes('/repos/kadragon/knue-policy-hub/commits/main')) {
         return new Response(JSON.stringify({
-          content: '정책 내용',
-          summary: '정책 요약'
+          sha: 'abc123def456789abc123def456789abc12345',
+          commit: {
+            message: 'Update policies',
+            author: { name: 'Test', date: new Date().toISOString() }
+          }
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
         });
       }
+
+      // Mock GitHub API: compare commits (detect changes)
+      if (urlString.includes('/repos/kadragon/knue-policy-hub/compare')) {
+        return new Response(JSON.stringify({
+          files: [
+            {
+              filename: 'policies/학칙.md',
+              status: 'added',
+              patch: '+# 학칙\n+내용'
+            },
+            {
+              filename: 'policies/규정1.md',
+              status: 'added',
+              patch: '+# 규정 1\n+내용'
+            }
+          ]
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Mock GitHub API: get file tree
+      if (urlString.includes('/repos/kadragon/knue-policy-hub/git/trees')) {
+        return new Response(JSON.stringify({
+          tree: [
+            { path: 'policies/학칙.md', type: 'blob', sha: 'blob1' },
+            { path: 'policies/규정1.md', type: 'blob', sha: 'blob2' }
+          ],
+          truncated: false
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Mock GitHub API: get blob content
+      if (urlString.includes('/repos/kadragon/knue-policy-hub/git/blobs')) {
+        return new Response(JSON.stringify({
+          content: btoa('# 정책 제목\n\n정책 내용\n\n## 기본 정보\n정보\n\n## 링크\n링크'),
+          encoding: 'base64'
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
       return new Response('Not Found', { status: 404 });
     }) as unknown as typeof fetch;
   });

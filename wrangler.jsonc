@@ -27,8 +27,13 @@
     }
   ],
   "vars": {
-    "POLICY_PAGE_URL": "https://www.knue.ac.kr/www/contents.do?key=392",
-    "POLICY_PAGE_KEY": "392",
-    "PREVIEW_PARSER_BASE_URL": "https://knue-www-preview-parser-cf.kangdongouk.workers.dev/"
+    // v3.0.0: GitHub-based policy sync (NEW)
+    "GITHUB_REPO": "kadragon/knue-policy-hub",
+    "GITHUB_BRANCH": "main",
+
+    // v2.0.0: Deprecated (to be removed after 90-day transition period)
+    // "POLICY_PAGE_URL": "https://www.knue.ac.kr/www/contents.do?key=392",
+    // "POLICY_PAGE_KEY": "392",
+    // "PREVIEW_PARSER_BASE_URL": "https://knue-www-preview-parser-cf.kangdongouk.workers.dev/"
   }
 }
