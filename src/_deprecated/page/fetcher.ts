@@ -1,3 +1,13 @@
+/**
+ * DEPRECATED: Page Fetcher
+ *
+ * This module is deprecated and will be removed on 2026-01-20.
+ * The HTML-based policy collection has been replaced with GitHub-based sync.
+ *
+ * @deprecated Use GitHub API client (src/github/client.ts) instead
+ * @removal-date 2026-01-20
+ */
+
 interface FetchOptions {
   timeoutMs?: number;
   maxRetries?: number;

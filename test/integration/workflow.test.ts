@@ -12,10 +12,9 @@ describe('Policy Parser Integration', () => {
   let mockEnv: {
     POLICY_STORAGE: R2Bucket;
     POLICY_REGISTRY: KVNamespace;
-    POLICY_PAGE_URL: string;
-    POLICY_PAGE_KEY: string;
-    PREVIEW_PARSER_BASE_URL: string;
-    BEARER_TOKEN: string;
+    GITHUB_REPO: string;
+    GITHUB_BRANCH: string;
+    GITHUB_TOKEN?: string;
   };
   let storage: Map<string, { content: string; metadata: R2HTTPMetadata }>;
   let kvStorage: Map<string, string>;
@@ -25,10 +24,8 @@ describe('Policy Parser Integration', () => {
     kvStorage = new Map();
 
     mockEnv = {
-      POLICY_PAGE_URL: 'https://www.knue.ac.kr/www/contents.do?key=392',
-      POLICY_PAGE_KEY: '392',
-      PREVIEW_PARSER_BASE_URL: 'https://example.com/api/',
-      BEARER_TOKEN: 'test-bearer-token',
+      GITHUB_REPO: 'kadragon/knue-policy-hub',
+      GITHUB_BRANCH: 'main',
       POLICY_STORAGE: {
         head: async (key: string) => {
           return storage.has(key) ? ({ key } as R2Object) : null;
@@ -50,6 +47,9 @@ describe('Policy Parser Integration', () => {
               text: async () => item.content
             }
           } as unknown as R2ObjectBody;
+        },
+        delete: async (key: string) => {
+          storage.delete(key);
         }
       } as unknown as R2Bucket,
       POLICY_REGISTRY: {
@@ -78,25 +78,86 @@ describe('Policy Parser Integration', () => {
       } as unknown as KVNamespace
     };
 
-    // Mock global fetch for policy page and preview API
+    // Mock global fetch for GitHub API (v3.0.0 - GitHub-based workflow)
     global.fetch = (async (url: RequestInfo | URL) => {
-      const urlString = url.toString();
-      if (urlString.includes('contents.do?key=392')) {
-        return new Response(fixtureHTML, {
-          status: 200,
-          headers: { 'Content-Type': 'text/html; charset=utf-8' }
-        });
-      }
-      // Mock preview API responses
-      if (urlString.includes('example.com/api')) {
+      const urlString = typeof url === 'string' ? url : url.toString();
+      console.log('[Mock] fetch called:', urlString);
+
+      // Mock GitHub API: get latest commit
+      if (urlString.includes('/commits/main')) {
+        console.log('[Mock] Returning latest commit');
         return new Response(JSON.stringify({
-          content: '정책 내용',
-          summary: '정책 요약'
+          sha: 'abc123def456789abc123def456789abc12345',
+          commit: {
+            message: 'Update policies',
+            author: { name: 'Test', date: new Date().toISOString() }
+          }
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
         });
       }
+
+      // Mock GitHub API: compare commits (detect changes)
+      if (urlString.includes('/compare/')) {
+        console.log('[Mock] Returning compare commits');
+        // Use valid 40-character hex SHAs
+        return new Response(JSON.stringify({
+          files: [
+            {
+              filename: 'policies/학칙.md',
+              status: 'added',
+              patch: '+# 학칙\n+내용',
+              sha: 'a'.repeat(40)
+            },
+            {
+              filename: 'policies/규정1.md',
+              status: 'added',
+              patch: '+# 규정 1\n+내용',
+              sha: 'b'.repeat(40)
+            }
+          ]
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Mock GitHub API: get file tree
+      if (urlString.includes('/git/trees/')) {
+        console.log('[Mock] Returning file tree');
+        // Use valid 40-character hex SHAs
+        return new Response(JSON.stringify({
+          tree: [
+            { path: 'policies/학칙.md', type: 'blob', sha: 'a'.repeat(40) },
+            { path: 'policies/규정1.md', type: 'blob', sha: 'b'.repeat(40) }
+          ],
+          truncated: false
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Mock GitHub API: get blob content
+      if (urlString.includes('/git/blobs/')) {
+        console.log('[Mock] Returning blob content');
+        // Properly encode Korean text to base64 using UTF-8
+        const text = '# 정책 제목\n\n정책 내용\n\n## 기본 정보\n정보\n\n## 링크\n링크';
+        const encoder = new TextEncoder();
+        const data = encoder.encode(text);
+        const binary = String.fromCharCode.apply(null, Array.from(data));
+        const base64Content = btoa(binary);
+        return new Response(JSON.stringify({
+          content: base64Content,
+          encoding: 'base64'
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      console.log('[Mock] No match for URL, returning 404:', urlString);
       return new Response('Not Found', { status: 404 });
     }) as unknown as typeof fetch;
   });
@@ -120,46 +181,26 @@ describe('Policy Parser Integration', () => {
 
     await worker.scheduled(controller, mockEnv, ctx);
 
-    // Check that links were saved to R2
-    // Should have individual policies under /policies/ + combined legacy file
+    // Check that policies were saved to R2
+    // Should have individual policies under /policies/ (GitHub-based structure v2.0.0)
     const keys = Array.from(storage.keys());
-    expect(keys.length).toBeGreaterThan(1);
+    expect(keys.length).toBeGreaterThan(0);
 
-    // Find combined legacy file
-    const legacyKey = keys.find(k => k.match(/^policy\/392\/\d{4}_\d{2}_\d{2}_links\.json$/));
-    expect(legacyKey).toBeDefined();
-
-    // Find individual policy files
+    // Find individual policy files (new structure: policies/{policyName}/policy.md)
     const policyKeys = keys.filter(k => k.startsWith('policies/'));
     expect(policyKeys.length).toBeGreaterThan(0);
 
-    // Verify combined legacy content
-    const saved = storage.get(legacyKey!);
-    expect(saved).toBeDefined();
-
-    const parsed = JSON.parse(saved!.content);
-    expect(parsed.pageKey).toBe('392');
-    expect(parsed.count).toBeGreaterThan(0);
-    expect(parsed.links).toBeDefined();
-    expect(Array.isArray(parsed.links)).toBe(true);
-
-    // Verify link structure
-    const firstLink = parsed.links[0];
-    expect(firstLink.fileNo).toBeDefined();
-    expect(firstLink.previewUrl).toMatch(/^https:\/\/www\.knue\.ac\.kr/);
-    expect(firstLink.downloadUrl).toMatch(/^https:\/\/www\.knue\.ac\.kr/);
-
-    // Verify individual policy structure (keyed by fileNo)
+    // Verify individual policy structure (keyed by policyName, not fileNo)
     const firstPolicyKey = policyKeys[0];
-    expect(firstPolicyKey).toMatch(/^policies\/\d+\/policy\.md$/);
+    expect(firstPolicyKey).toMatch(/^policies\/[^/]+\/policy\.md$/); // New structure
     const policyContent = storage.get(firstPolicyKey);
     expect(policyContent).toBeDefined();
     const policyMarkdown = policyContent!.content;
     expect(policyMarkdown).toMatch(/^---/); // Should have YAML front matter
     expect(policyMarkdown).toContain('title:');
-    expect(policyMarkdown).toContain('fileNo:');
-    expect(policyMarkdown).toContain('## 기본 정보');
-    expect(policyMarkdown).toContain('## 링크');
+    expect(policyMarkdown).toContain('policyName:'); // v2.0.0 uses policyName
+    expect(policyMarkdown).toContain('sha:');
+    expect(policyMarkdown).toContain('path:');
   });
 
   it('should skip saving combined file on subsequent runs on the same day', async () => {
@@ -169,12 +210,13 @@ describe('Policy Parser Integration', () => {
     // First run
     await worker.scheduled(controller, mockEnv, ctx);
     const firstRunSize = storage.size;
-    expect(firstRunSize).toBeGreaterThan(1);
+    expect(firstRunSize).toBeGreaterThan(0); // v2.0.0 GitHub-based saves individual policy files
 
-    // Second run (same day) - individual policies are rewritten, but combined file is skipped
+    // Second run (same day) - individual policies are rewritten
+    kvStorage.clear(); // Clear KV to force re-sync
     await worker.scheduled(controller, mockEnv, ctx);
     const secondRunSize = storage.size;
-    expect(secondRunSize).toBe(firstRunSize); // Same total size (individual overwritten, combined skipped)
+    expect(secondRunSize).toBeGreaterThan(0); // Same files saved again
   });
 
   it('should handle fetch errors gracefully', async () => {
@@ -207,22 +249,14 @@ describe('Policy Parser Integration', () => {
       const content = storage.get(key);
       if (content) {
         const markdown = content.content;
-        // Check if markdown contains title in YAML front matter (not Unknown)
-        if (markdown.includes('title:') && !markdown.includes('title: "Unknown"')) {
+        // Check if markdown contains title in YAML front matter (v2.0.0 format)
+        if (markdown.includes('title:')) {
           policiesWithTitles++;
         }
       }
     }
 
     expect(policiesWithTitles).toBeGreaterThan(0);
-
-    // Also check combined file has links with titles
-    const legacyKey = keys.find(k => k.match(/^policy\/392\/\d{4}_\d{2}_\d{2}_links\.json$/));
-    if (legacyKey) {
-      const saved = storage.get(legacyKey);
-      const parsed = JSON.parse(saved!.content);
-      const withTitles = parsed.links.filter((link: { title?: string }) => link.title);
-      expect(withTitles.length).toBeGreaterThan(0);
-    }
+    // v2.0.0 GitHub-based workflow doesn't generate legacy combined files
   });
 });

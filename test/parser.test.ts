@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { parsePolicyLinks, enrichLinksWithTitles, extractTitle } from '../src/page/parser';
+import { parsePolicyLinks, enrichLinksWithTitles, extractTitle } from '../src/_deprecated/page/parser';
 
 const fixtureHTML = readFileSync(
   join(__dirname, '../fixtures/policy-page-sample.html'),

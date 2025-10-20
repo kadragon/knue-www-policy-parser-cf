@@ -1,8 +1,13 @@
 /**
- * Policy Synchronization Engine
+ * Policy Synchronization Engine (v2.0.0)
  *
- * Implements the synchronization algorithm defined in .spec/kv-sync-algorithm.spec.md
- * Detects and applies changes to policy registry based on current API state.
+ * Implements the synchronization algorithm defined in .spec/kv-sync-algorithm.spec.md v2.0.0
+ * Detects and applies changes to policy registry based on GitHub repository state.
+ *
+ * Breaking changes from v1.x:
+ * - Primary key: title → policyName
+ * - Change detection: fileNo → sha
+ * - Source: Preview API → GitHub repository
  */
 
 import type { ApiPolicy, PolicyEntry, SyncResult, QueueEntry } from './types';
@@ -12,9 +17,9 @@ export class PolicySynchronizer {
   constructor(private kvManager: KVManager) {}
 
   /**
-   * Main synchronization flow
+   * Main synchronization flow (v2.0.0)
    *
-   * 1. Fetch current policies from API
+   * 1. Fetch current policies from GitHub
    * 2. Load existing policies from KV
    * 3. Detect changes (ADD, UPDATE, DELETE)
    * 4. Persist changes and return results
@@ -34,32 +39,32 @@ export class PolicySynchronizer {
     const toDelete: string[] = [];
 
     // Scan for additions and updates
-    for (const [title, apiPolicy] of currentMap) {
-      const existing = kvRegistry.get(title);
+    for (const [policyName, apiPolicy] of currentMap) {
+      const existing = kvRegistry.get(policyName);
 
       if (!existing) {
         // ADD: New policy
         toAdd.push(this.createPolicyEntry(apiPolicy));
-        console.log(`[Sync] ADD: "${title}" (fileNo: ${apiPolicy.fileNo})`);
-      } else if (existing.fileNo !== apiPolicy.fileNo) {
-        // UPDATE: fileNo changed
+        console.log(`[Sync] ADD: "${policyName}" (sha: ${apiPolicy.sha.substring(0, 7)})`);
+      } else if (existing.sha !== apiPolicy.sha) {
+        // UPDATE: sha changed (content modified)
         const updated = this.createPolicyEntry(apiPolicy);
         toUpdate.push(updated);
         console.log(
-          `[Sync] UPDATE: "${title}" (fileNo: ${existing.fileNo} → ${apiPolicy.fileNo})`
+          `[Sync] UPDATE: "${policyName}" (sha: ${existing.sha.substring(0, 7)} → ${apiPolicy.sha.substring(0, 7)})`
         );
       } else {
         // NO-OP: No changes
-        console.log(`[Sync] SKIP: "${title}" (no changes)`);
+        console.log(`[Sync] SKIP: "${policyName}" (no changes)`);
       }
     }
 
     // Scan for deletions
-    for (const [title] of kvRegistry) {
-      if (!currentMap.has(title)) {
-        // DELETE: Removed from API
-        toDelete.push(title);
-        console.log(`[Sync] DELETE: "${title}"`);
+    for (const [policyName] of kvRegistry) {
+      if (!currentMap.has(policyName)) {
+        // DELETE: Removed from GitHub
+        toDelete.push(policyName);
+        console.log(`[Sync] DELETE: "${policyName}"`);
       }
     }
 
@@ -119,12 +124,12 @@ export class PolicySynchronizer {
 
       // Delete removed entries
       if (toDelete.length > 0) {
-        await this.kvManager.deletePoliciesByTitles(toDelete);
+        await this.kvManager.deletePoliciesByNames(toDelete);
         console.log(`[Persist] Deleted ${toDelete.length} policies from KV`);
 
         // Clean up queue entries
-        for (const title of toDelete) {
-          await this.kvManager.dequeueByTitle(title);
+        for (const policyName of toDelete) {
+          await this.kvManager.dequeueByName(policyName);
         }
         console.log(`[Persist] Cleaned up ${toDelete.length} queue entries`);
       }
@@ -135,23 +140,25 @@ export class PolicySynchronizer {
   }
 
   /**
-   * Helper: Build a Map<title, ApiPolicy> for efficient lookups
+   * Helper: Build a Map<policyName, ApiPolicy> for efficient lookups
+   *
+   * v2.0.0: Changed from Map<title, ...> to Map<policyName, ...>
    */
   private buildPolicyMap(policies: ApiPolicy[]): Map<string, ApiPolicy> {
     const map = new Map<string, ApiPolicy>();
 
     for (const policy of policies) {
-      if (!policy.title || !policy.title.trim()) {
-        console.warn('[Sync] Skipping policy with empty title');
+      if (!policy.policyName || !policy.policyName.trim()) {
+        console.warn('[Sync] Skipping policy with empty policyName');
         continue;
       }
 
-      if (map.has(policy.title)) {
-        console.warn(`[Sync] Duplicate title detected: "${policy.title}". Using first occurrence.`);
+      if (map.has(policy.policyName)) {
+        console.warn(`[Sync] Duplicate policyName detected: "${policy.policyName}". Using first occurrence.`);
         continue;
       }
 
-      map.set(policy.title, policy);
+      map.set(policy.policyName, policy);
     }
 
     return map;
@@ -162,12 +169,12 @@ export class PolicySynchronizer {
    */
   private createPolicyEntry(apiPolicy: ApiPolicy): PolicyEntry {
     return {
+      policyName: apiPolicy.policyName,
       title: apiPolicy.title,
-      fileNo: apiPolicy.fileNo,
       status: 'active',
       lastUpdated: new Date().toISOString(),
-      previewUrl: apiPolicy.previewUrl,
-      downloadUrl: apiPolicy.downloadUrl
+      sha: apiPolicy.sha,
+      path: apiPolicy.path
     };
   }
 
@@ -176,8 +183,8 @@ export class PolicySynchronizer {
    */
   private createQueueEntry(policy: PolicyEntry, operation: 'add' | 'update'): QueueEntry {
     return {
-      title: policy.title,
-      fileNo: policy.fileNo,
+      policyName: policy.policyName,
+      sha: policy.sha,
       operation,
       retryCount: 0,
       createdAt: new Date().toISOString(),
@@ -186,26 +193,38 @@ export class PolicySynchronizer {
   }
 
   /**
-   * Validate API policy data
+   * Validate API policy data (v2.0.0)
+   *
+   * v2.0.0: Validate policyName and sha instead of fileNo
    */
   validateApiPolicy(policy: ApiPolicy): boolean {
+    // Validate policyName
+    if (!policy.policyName || typeof policy.policyName !== 'string' || !policy.policyName.trim()) {
+      console.warn('[Validation] Invalid policyName:', policy.policyName);
+      return false;
+    }
+
+    // Validate title
     if (!policy.title || typeof policy.title !== 'string' || !policy.title.trim()) {
       console.warn('[Validation] Invalid title:', policy.title);
       return false;
     }
 
-    if (!policy.fileNo || typeof policy.fileNo !== 'string' || !/^\d+$/.test(policy.fileNo)) {
-      console.warn('[Validation] Invalid fileNo:', policy.fileNo);
+    // Validate sha (Git SHA is 40 hex characters)
+    if (!policy.sha || typeof policy.sha !== 'string' || !/^[0-9a-f]{40}$/i.test(policy.sha)) {
+      console.warn('[Validation] Invalid sha:', policy.sha);
       return false;
     }
 
-    if (!policy.previewUrl || typeof policy.previewUrl !== 'string') {
-      console.warn('[Validation] Invalid previewUrl:', policy.previewUrl);
+    // Validate path
+    if (!policy.path || typeof policy.path !== 'string') {
+      console.warn('[Validation] Invalid path:', policy.path);
       return false;
     }
 
-    if (!policy.downloadUrl || typeof policy.downloadUrl !== 'string') {
-      console.warn('[Validation] Invalid downloadUrl:', policy.downloadUrl);
+    // Validate content
+    if (!policy.content || typeof policy.content !== 'string') {
+      console.warn('[Validation] Invalid content (empty or not string)');
       return false;
     }
 

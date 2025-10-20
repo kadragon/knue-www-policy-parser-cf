@@ -1,198 +1,123 @@
 # KNUE Policy Parser - Cloudflare Workers
 
-KNUE 규정 페이지에서 정책 문서 링크를 수집하여 Cloudflare R2에 저장하는 Worker 애플리케이션입니다.
+GitHub 저장소(`kadragon/knue-policy-hub`)에 있는 정책 마크다운을 기반으로 매일 동기화하고, Cloudflare KV/R2에 최신 정책을 반영하는 스케줄드 워커입니다. HTML 크롤링과 Preview API 호출을 제거해 동기화 속도를 높이고 변경 이력을 Git 커밋으로 추적합니다.
 
-## 기능
+## 핵심 기능
+- `0 16 * * *`(UTC) 크론 스케줄에서 자동 실행되어 매일 새 커밋을 확인합니다.
+- GitHub 커밋 SHA를 비교해 추가/수정/삭제된 정책 마크다운만 처리합니다.
+- `policyName`(파일명) 기반으로 KV를 동기화하고 Git `sha`를 버전 관리에 사용합니다.
+- 각 정책을 `policies/{policyName}/policy.md`로 R2에 저장하며 YAML front matter에 메타데이터를 포함합니다.
+- 구조화된 로그로 GitHub 호출, 변경된 정책 수, KV/R2 결과를 추적합니다.
 
-- 매주 일요일 오전 11시(Asia/Seoul)에 자동 실행 (UTC 2AM)
-- KNUE 규정 페이지에서 모든 정책 문서 링크 수집
-- 각 문서의 미리보기/다운로드 URL 추출
-- 문서 제목 정보 포함
-- Cloudflare R2에 JSON 형식으로 저장 (`policy/{page_key}/{yyyy}_{mm}_{dd}_links.json`)
-- 중복 저장 방지 (동일 날짜 재실행 시 스킵)
-
-## 수집 데이터
-
-### 링크 구조
-
-각 정책 문서에 대해 다음 정보를 수집합니다:
-
-```json
-{
-  "fileNo": "868",
-  "previewUrl": "https://www.knue.ac.kr/www/previewMenuCntFile.do?key=392&fileNo=868",
-  "downloadUrl": "https://www.knue.ac.kr/downloadContentsFile.do?key=392&fileNo=868",
-  "title": "한국교원대학교 설치령"
-}
-```
-
-### 저장 형식
-
-R2에 저장되는 JSON 파일 구조:
-
-```json
-{
-  "timestamp": "2025-10-19T02:00:00.000Z",
-  "pageKey": "392",
-  "count": 96,
-  "links": [
-    {
-      "fileNo": "868",
-      "previewUrl": "...",
-      "downloadUrl": "...",
-      "title": "한국교원대학교 설치령"
-    }
-  ]
-}
-```
-
-## 아키텍처
+## 동작 흐름
+1. 스케줄러가 최신 커밋 SHA를 조회하고, KV에 저장된 직전 SHA와 비교합니다.
+2. 커밋이 변경되면 GitHub Compare API로 변경된 `.md` 파일 목록을 가져옵니다.
+3. 변경된 파일은 blob API로 콘텐츠를 읽고, 파서가 `policyName`/`title`/`content`를 추출합니다.
+4. KV 동기화기가 `policyName` 단위로 추가/수정/삭제 집합을 계산해 `policy-registry`에 반영합니다.
+5. R2 라이터가 정책별 markdown을 최신 콘텐츠로 갱신하고, 실행 메타데이터를 로그 및 KV에 기록합니다.
 
 ```
-Policy Page (https://www.knue.ac.kr/www/contents.do?key=392)
-    ↓
-  Fetcher → HTML Parser → Link Extractor → Title Enricher → R2
-                                                              ↓
-                              policy/392/{yyyy}_{mm}_{dd}_links.json
+GitHub Repo (kadragon/knue-policy-hub)
+        ↓ commits / blobs
+Change Tracker ──→ Markdown Parser ──→ KV Synchronizer ──→ R2 Writer
+        ↑                    │                    │             ↓
+  Last Commit (KV) ──────────┘        Stats & Metadata ──> Cloudflare R2
 ```
 
 ## 프로젝트 구조
-
 ```
 src/
-├── index.ts              # Worker 엔트리 포인트 (scheduled handler)
-├── page/
-│   ├── fetcher.ts        # 정책 페이지 HTML 가져오기
-│   └── parser.ts         # 링크 추출 및 제목 enrichment
-├── storage/
-│   └── r2-writer.ts      # R2 쓰기 작업
-└── utils/
-    └── datetime.ts       # 날짜/시간 유틸리티
+├── index.ts              # 스케줄드 핸들러: GitHub 동기화 전체 오케스트레이션
+├── github/               # GitHub REST API 클라이언트, diff/트리/마크다운 파서
+├── kv/                   # policyName 기반 KV 타입, 매니저, 동기화 로직
+├── storage/r2-writer.ts  # 정책 Markdown v2.0.0 작성 및 저장
+├── utils/                # 날짜/로그 헬퍼 등 공용 유틸리티
+└── _deprecated/          # 2026-01-20 제거 예정인 구 HTML/Preview 모듈 (읽기 전용)
 
-test/                     # 유닛 및 통합 테스트
-fixtures/                 # 테스트 픽스처
+test/
+├── github.*.test.ts      # GitHub 모듈 단위 테스트
+├── kv-*.test.ts          # KV 매니저/동기화 테스트
+├── storage/*.test.ts     # R2 writer 테스트
+└── integration/          # 크론 워크플로우 및 엔드 투 엔드 시나리오
+
+fixtures/                 # GitHub 응답 / 정책 마크다운 테스트 픽스처
 ```
 
-## 설정
+## 요구 사항
+- Node.js 18 이상 (Cloudflare Workers 런타임과 동일)
+- Wrangler CLI (`npm install -g wrangler`)
+- Cloudflare 계정: KV(`policy-registry`), R2(`knue-vectorstore`) 바인딩 필요
 
-### 사전 요구사항
-
-- Node.js >= 18.x
-- Cloudflare 계정
-- Wrangler CLI
-
-### 설치
-
+## 설치 및 환경 구성
 ```bash
 npm install
 ```
 
-### R2 버킷
-
-기존 `knue-vectorstore` 버킷을 사용합니다. 버킷이 없다면:
-
-```bash
-npx wrangler r2 bucket create knue-vectorstore
-```
-
 ### 환경 변수
+| 이름 | 설명 | 예시 | 비고 |
+|------|------|------|------|
+| `GITHUB_REPO` | GitHub 저장소 (`owner/repo`) | `kadragon/knue-policy-hub` | 필수 |
+| `GITHUB_BRANCH` | 추적할 브랜치 | `main` | 필수 |
+| `GITHUB_TOKEN` | (선택) 인증 토큰 | `ghp_***` | 레이트 리밋 확장 |
+| `POLICY_STORAGE` | Cloudflare R2 버킷 바인딩 | `policy-storage` | wrangler.jsonc에 설정 |
+| `POLICY_REGISTRY` | Cloudflare KV 바인딩 | `policy-registry` | wrangler.jsonc에 설정 |
 
-**프로덕션 설정** (`wrangler.jsonc`에서 설정):
-- `POLICY_PAGE_URL`: KNUE 규정 페이지 URL (`https://www.knue.ac.kr/www/contents.do?key=392`)
-- `POLICY_PAGE_KEY`: 페이지 키 (`392`)
-- `POLICY_STORAGE`: R2 버킷 바인딩 (`knue-vectorstore`)
+1. `.env.example`를 `.env.local`로 복사 후 값 확인/수정합니다.
+2. `wrangler.jsonc`의 `vars` 및 `kv_namespaces`/`r2_buckets` 섹션이 프로덕션 바인딩과 일치하는지 확인합니다.
+3. GitHub 토큰을 사용할 경우 Workers Secrets(`wrangler secret put GITHUB_TOKEN`)로 설정합니다.
 
-**로컬 개발 환경**:
-1. `.env.example`를 `.env.local`로 복사:
-   ```bash
-   cp .env.example .env.local
-   ```
-2. 필요시 값 수정
-3. 로컬 테스트 시 자동으로 로드됨
+### 기존 변수 (폐기 예정)
+`POLICY_PAGE_URL`, `POLICY_PAGE_KEY`, `PREVIEW_PARSER_BASE_URL`, `BEARER_TOKEN` 등 Preview API 관련 값은 2026-01-20 이후 제거됩니다. 현재는 `_deprecated/` 모듈 테스트 유지용으로만 남아 있습니다.
 
-## 개발
-
-### 로컬 테스트
-
+## 로컬 개발 플로우
 ```bash
-# 유닛 테스트 실행
+# 타입 검사
+npm run typecheck
+
+# 린트
+npm run lint
+
+# 전체 테스트 (148개 케이스)
 npm test
 
-# 테스트 커버리지 확인
+# 커버리지 보고서
 npm run test:coverage
 
-# Cron 트리거 시뮬레이션
-npm run dev
-curl "http://localhost:8787/__scheduled?cron=0+2+*+*+0"
+# 스케줄러 시뮬레이션 (GitHub 호출은 테스트 더블 사용)
+wrangler dev --test-scheduled
 ```
 
-### 배포
+- `test/integration/workflow.test.ts`는 GitHub API를 모킹하므로 네트워크 없이도 실행 가능합니다.
+- `_deprecated/` 경로의 테스트는 회귀 검사용이며, 신규 구현에서는 참조하지 않습니다.
 
+## 배포
 ```bash
 npm run deploy
 ```
 
-### 신뢰성 & Observability
+배포 전 체크리스트:
+- `npm run lint`, `npm run typecheck`, `npm test` 모두 성공
+- `wrangler login`으로 계정 인증
+- 프로덕션 환경에 `GITHUB_REPO`/`GITHUB_BRANCH` 변수가 설정되어 있는지 확인
+- 필요 시 `GITHUB_TOKEN`을 시크릿으로 주입
 
-**Retry Logic**
-- 페이지 fetch 시 transient 오류에 대한 자동 재시도
-- Exponential backoff: 1s → 2s → 4s (최대 10s)
-- 최대 3회 재시도 (기본값)
-- 처리 상황: HTTP 429, 503, timeout, network errors
+## 관측 및 장애 대응
+- 로그 항목: 시작/종료 타임스탬프, GitHub SHA(이전/현재), 변경 파일 수(added/modified/deleted), KV/R2 처리 결과, 총 소요 시간
+- 실패 시 스택 트레이스를 포함해 에러를 다시 던져 Cloudflare 작업 대시보드에서 확인 가능
+- GitHub 레이트 리밋(403, `X-RateLimit-Remaining: 0`) 발생 시 워커가 경고를 남기고 종료하며, 다음 크론 실행에서 자동 재시도합니다.
+- 1MB 이상 블롭은 건너뛰고 경고 로그만 남겨 전체 동기화를 유지합니다.
 
-**Structured Logging**
-- 각 단계별 진행 상황 로그 (fetch, parse, enrich, save)
-- 성공/실패 통계 및 요약
-- 에러 발생 시 상세 정보 (error message, stack trace)
-- 재시도 시도 여부 및 결과 기록
+## 마이그레이션 메모
+- KV 키: `policy:{policyName}` (OLD: `policy:{title}`)
+- R2 경로: `policies/{policyName}/policy.md` (OLD: `policies/{fileNo}/policy.md`)
+- Sync 메타데이터: `metadata:sync:lastCommit`에 최신 커밋 SHA 저장
+- `_deprecated/` 디렉터리는 2026-01-20에 삭제 예정이며, Preview API 경로에 대한 안전한 롤백을 위해 90일간 유지됩니다.
 
-**로그 예시:**
-```
-[2025-10-19T02:00:00.000Z] Starting policy link collection job...
-🔄 Fetching policy page: https://www.knue.ac.kr/www/contents.do?key=392
-✓ Policy page fetched (239939 bytes)
-✓ Parsed 96 policy links
-✓ Enriched links with titles
-✓ [R2] Saved 96 links to policy/392/2025_10_19_links.json
-
-✅ Policy link collection completed in 450ms
-📊 Saved 96 links to policy/392/2025_10_19_links.json
-```
-
-## 테스트 커버리지
-
-- Page Parser: 9 tests
-- R2 Writer: 6 tests
-- Integration: 5 tests
-
-**Total: 20 tests passing**
-
-### Integration Tests
-- ✅ HTTP 요청 거부 (cron만 허용)
-- ✅ 정책 링크 수집 및 저장
-- ✅ 동일 날짜 중복 실행 스킵
-- ✅ Fetch 오류 처리
-- ✅ 제목 enrichment
-
-## 저장 경로 구조
-
-- 2025-10-19 수집: `policy/392/2025_10_19_links.json`
-- 2025-10-26 수집: `policy/392/2025_10_26_links.json`
-
-## Cron 스케줄
-
-- `0 2 * * 0` - 매주 일요일 11:00 AM Asia/Seoul (UTC 2AM)
-- 약 96개의 정책 문서 링크 수집
-- 주 1회 실행 (규정은 자주 변경되지 않음)
-
-## 다른 프로젝트와의 연계
-
-이 프로젝트는 다음 프로젝트들과 함께 사용될 수 있습니다:
-
-- **knue-www-rss-parser-cf**: RSS 피드 파싱 (게시판 콘텐츠)
-- **knue-www-preview-parser-cf**: 첨부파일 미리보기 파싱
-- **knue-policy-vectorizer**: 정책 문서 벡터화 (R2에서 링크 읽어서 벡터DB 저장)
+## 참고 문서
+- `.spec/github-integration.spec.md` — GitHub API 계약
+- `.spec/kv-sync-algorithm.spec.md` — policyName 기반 KV 동기화 알고리즘
+- `.tasks/PLAN.md` — RSP-I 단계별 계획
+- `.tasks/PROGRESS.md` — 구현 진행 로그 및 테스트 상태
 
 ## 라이선스
-
 ISC

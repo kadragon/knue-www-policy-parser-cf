@@ -23,12 +23,14 @@ class IntegrationMockKVManager {
   }
 
   async setPolicyEntry(policy: PolicyEntry) {
-    this.policies.set(policy.title, policy);
+    // v2.0.0: Use policyName as the key instead of title
+    this.policies.set(policy.policyName, policy);
   }
 
   async setPolicyEntries(policies: PolicyEntry[]) {
     for (const policy of policies) {
-      this.policies.set(policy.title, policy);
+      // v2.0.0: Use policyName as the key instead of title
+      this.policies.set(policy.policyName, policy);
     }
   }
 
@@ -42,6 +44,19 @@ class IntegrationMockKVManager {
     }
   }
 
+  // v2.0.0: New method name using policyName
+  async deletePoliciesByNames(policyNames: string[]) {
+    for (const policyName of policyNames) {
+      // Find and delete the policy by policyName
+      for (const [key, policy] of this.policies.entries()) {
+        if ((policy as any).policyName === policyName) {
+          this.policies.delete(key);
+          break;
+        }
+      }
+    }
+  }
+
   async setSyncMetadata(metadata: any) {
     this.metadata = metadata;
   }
@@ -51,17 +66,30 @@ class IntegrationMockKVManager {
   }
 
   async enqueueForProcessing(entry: any) {
-    this.queue.set(entry.title, entry);
+    // v2.0.0: Use policyName as the key instead of title
+    this.queue.set(entry.policyName, entry);
   }
 
   async enqueueMultiple(entries: any[]) {
     for (const entry of entries) {
-      this.queue.set(entry.title, entry);
+      // v2.0.0: Use policyName as the key instead of title
+      this.queue.set(entry.policyName, entry);
     }
   }
 
   async dequeueByTitle(title: string) {
     this.queue.delete(title);
+  }
+
+  // v2.0.0: New method name using policyName
+  async dequeueByName(policyName: string) {
+    // Find and delete the queue entry by policyName
+    for (const [key, entry] of this.queue.entries()) {
+      if ((entry as any).policyName === policyName) {
+        this.queue.delete(key);
+        break;
+      }
+    }
   }
 
   async getAllQueueEntries() {
@@ -86,6 +114,18 @@ describe('Full Cron Workflow Integration', () => {
   let synchronizer: PolicySynchronizer;
   let kvManager: IntegrationMockKVManager;
 
+  // Helper to create test ApiPolicy objects (v2.0.0 structure)
+  const createTestPolicy = (i: number, title?: string): ApiPolicy => {
+    const policyName = `정책_${i + 1}`;
+    return {
+      policyName,
+      title: title || `규정_${i + 1}`,
+      sha: `sha_${1000 + i}`,
+      path: `policies/${policyName}.md`,
+      content: `# ${title || `규정_${i + 1}`}\n\n정책 내용`
+    };
+  };
+
   beforeEach(() => {
     kvManager = new IntegrationMockKVManager();
     synchronizer = new PolicySynchronizer(kvManager as any);
@@ -93,13 +133,8 @@ describe('Full Cron Workflow Integration', () => {
 
   describe('Day 1: Initial Sync with 50 Policies', () => {
     it('should import 50 new policies on first run', async () => {
-      // Simulate 50 policies from API
-      const apiPolicies: ApiPolicy[] = Array.from({ length: 50 }, (_, i) => ({
-        title: `규정_${i + 1}`,
-        fileNo: `${1000 + i}`,
-        previewUrl: `https://example.com/preview/${1000 + i}`,
-        downloadUrl: `https://example.com/download/${1000 + i}`
-      }));
+      // Simulate 50 policies from API (v2.0.0: GitHub-based structure)
+      const apiPolicies: ApiPolicy[] = Array.from({ length: 50 }, (_, i) => createTestPolicy(i));
 
       const result = await synchronizer.synchronize(apiPolicies);
 
@@ -129,68 +164,53 @@ describe('Full Cron Workflow Integration', () => {
   describe('Day 2: Add 2 New, Update 3, No Deletes', () => {
     it('should correctly detect changes on second run', async () => {
       // Day 1: Initial 50 policies
-      const initialPolicies = Array.from({ length: 50 }, (_, i) => ({
-        title: `규정_${i + 1}`,
-        fileNo: `${1000 + i}`,
-        previewUrl: `https://example.com/preview/${1000 + i}`,
-        downloadUrl: `https://example.com/download/${1000 + i}`
-      }));
+      const initialPolicies: ApiPolicy[] = Array.from({ length: 50 }, (_, i) => createTestPolicy(i));
 
       await synchronizer.synchronize(initialPolicies);
 
       // Day 2: 50 existing + 2 new + 3 updated
       const day2Policies: ApiPolicy[] = [
         // 45 unchanged
-        ...Array.from({ length: 45 }, (_, i) => ({
-          title: `규정_${i + 1}`,
-          fileNo: `${1000 + i}`,
-          previewUrl: `https://example.com/preview/${1000 + i}`,
-          downloadUrl: `https://example.com/download/${1000 + i}`
-        })),
-        // 3 updated fileNo (규정_46, 규정_47, 규정_48)
+        ...Array.from({ length: 45 }, (_, i) => createTestPolicy(i)),
+        // 3 updated (규정_46, 규정_47, 규정_48) - different sha to simulate updates
         {
+          policyName: '정책_46',
           title: '규정_46',
-          fileNo: '2000', // Changed from 1045
-          previewUrl: 'https://example.com/preview/2000',
-          downloadUrl: 'https://example.com/download/2000'
+          sha: 'sha_2000', // Updated sha
+          path: 'policies/정책_46.md',
+          content: '# 규정_46\n\n정책 내용'
         },
         {
+          policyName: '정책_47',
           title: '규정_47',
-          fileNo: '2001', // Changed from 1046
-          previewUrl: 'https://example.com/preview/2001',
-          downloadUrl: 'https://example.com/download/2001'
+          sha: 'sha_2001', // Updated sha
+          path: 'policies/정책_47.md',
+          content: '# 규정_47\n\n정책 내용'
         },
         {
+          policyName: '정책_48',
           title: '규정_48',
-          fileNo: '2002', // Changed from 1047
-          previewUrl: 'https://example.com/preview/2002',
-          downloadUrl: 'https://example.com/download/2002'
+          sha: 'sha_2002', // Updated sha
+          path: 'policies/정책_48.md',
+          content: '# 규정_48\n\n정책 내용'
         },
         // 2 unchanged (규정_49, 규정_50)
-        {
-          title: '규정_49',
-          fileNo: '1048',
-          previewUrl: 'https://example.com/preview/1048',
-          downloadUrl: 'https://example.com/download/1048'
-        },
-        {
-          title: '규정_50',
-          fileNo: '1049',
-          previewUrl: 'https://example.com/preview/1049',
-          downloadUrl: 'https://example.com/download/1049'
-        },
+        createTestPolicy(48),
+        createTestPolicy(49),
         // 2 new policies
         {
+          policyName: '신규정책_1',
           title: '신규규정_1',
-          fileNo: '3000',
-          previewUrl: 'https://example.com/preview/3000',
-          downloadUrl: 'https://example.com/download/3000'
+          sha: 'sha_3000',
+          path: 'policies/신규정책_1.md',
+          content: '# 신규규정_1\n\n새로운 정책'
         },
         {
+          policyName: '신규정책_2',
           title: '신규규정_2',
-          fileNo: '3001',
-          previewUrl: 'https://example.com/preview/3001',
-          downloadUrl: 'https://example.com/download/3001'
+          sha: 'sha_3001',
+          path: 'policies/신규정책_2.md',
+          content: '# 신규규정_2\n\n새로운 정책'
         }
       ];
 
@@ -206,14 +226,13 @@ describe('Full Cron Workflow Integration', () => {
       const policies = kvManager.getPoliciesSnapshot();
       expect(policies.size).toBe(52);
 
-      // Verify specific updates
-      const updated46 = policies.get('규정_46');
-      expect(updated46?.fileNo).toBe('2000');
-
+      // Verify specific updates (using policyName as key, not title)
+      const updated46 = policies.get('정책_46');
+      expect(updated46).toBeDefined();
+      expect(updated46?.title).toBe('규정_46');
       // Verify new policies exist
-      const new1 = policies.get('신규규정_1');
+      const new1 = policies.get('신규정책_1');
       expect(new1).toBeDefined();
-      expect(new1?.fileNo).toBe('3000');
 
       // Verify queue has correct operations
       // Queue contains entries from both syncs. First sync created 50, second sync updated/added 5
@@ -235,46 +254,36 @@ describe('Full Cron Workflow Integration', () => {
   describe('Day 3: Delete 5 Policies', () => {
     it('should correctly delete policies removed from API', async () => {
       // Day 1: Initial 10 policies
-      const initialPolicies = Array.from({ length: 10 }, (_, i) => ({
-        title: `규정_${i + 1}`,
-        fileNo: `${1000 + i}`,
-        previewUrl: `https://example.com/preview/${1000 + i}`,
-        downloadUrl: `https://example.com/download/${1000 + i}`
-      }));
+      const initialPolicies: ApiPolicy[] = Array.from({ length: 10 }, (_, i) => createTestPolicy(i));
 
       await synchronizer.synchronize(initialPolicies);
 
       // Day 3: Only 5 policies remain (규정_1 to 규정_5)
-      const day3Policies: ApiPolicy[] = Array.from({ length: 5 }, (_, i) => ({
-        title: `규정_${i + 1}`,
-        fileNo: `${1000 + i}`,
-        previewUrl: `https://example.com/preview/${1000 + i}`,
-        downloadUrl: `https://example.com/download/${1000 + i}`
-      }));
+      const day3Policies: ApiPolicy[] = Array.from({ length: 5 }, (_, i) => createTestPolicy(i));
 
       const result = await synchronizer.synchronize(day3Policies);
 
       // Verify results
       expect(result.stats.deleted).toBe(5);
       expect(result.toDelete).toEqual([
-        '규정_6',
-        '규정_7',
-        '규정_8',
-        '규정_9',
-        '규정_10'
+        '정책_6',
+        '정책_7',
+        '정책_8',
+        '정책_9',
+        '정책_10'
       ]);
 
       // Verify KV state
       const policies = kvManager.getPoliciesSnapshot();
       expect(policies.size).toBe(5);
 
-      // Verify deleted policies don't exist
-      expect(policies.get('규정_6')).toBeUndefined();
-      expect(policies.get('규정_10')).toBeUndefined();
+      // Verify deleted policies don't exist (using policyName as key)
+      expect(policies.get('정책_6')).toBeUndefined();
+      expect(policies.get('정책_10')).toBeUndefined();
 
-      // Verify remaining policies exist
-      expect(policies.get('규정_1')).toBeDefined();
-      expect(policies.get('규정_5')).toBeDefined();
+      // Verify remaining policies exist (using policyName as key)
+      expect(policies.get('정책_1')).toBeDefined();
+      expect(policies.get('정책_5')).toBeDefined();
     });
   });
 
@@ -285,10 +294,8 @@ describe('Full Cron Workflow Integration', () => {
 
       for (let cycle = 0; cycle < cycles; cycle++) {
         const policies: ApiPolicy[] = Array.from({ length: 20 }, (_, i) => ({
-          title: `규정_${i + 1}`,
-          fileNo: `${2000 + i + cycle * 100}`,
-          previewUrl: `https://example.com/preview/${2000 + i + cycle * 100}`,
-          downloadUrl: `https://example.com/download/${2000 + i + cycle * 100}`
+          ...createTestPolicy(i),
+          sha: `sha_cycle_${cycle}_${i}` // Different sha for each cycle to simulate updates
         }));
 
         const result = await synchronizer.synchronize(policies);
@@ -301,12 +308,13 @@ describe('Full Cron Workflow Integration', () => {
         // Verify all policies have required fields
         const allPolicies = kvManager.getPoliciesSnapshot();
         for (const [_, policy] of allPolicies) {
+          expect(policy.policyName).toBeDefined();
           expect(policy.title).toBeDefined();
-          expect(policy.fileNo).toBeDefined();
+          expect(policy.sha).toBeDefined();
+          expect(policy.path).toBeDefined();
           expect(policy.status).toBe('active');
           expect(policy.lastUpdated).toBeDefined();
-          expect(policy.previewUrl).toBeDefined();
-          expect(policy.downloadUrl).toBeDefined();
+          // v2.0.0 uses GitHub-based fields, not preview URLs
         }
       }
 
@@ -317,10 +325,11 @@ describe('Full Cron Workflow Integration', () => {
     it('should idempotently handle repeated syncs', async () => {
       const policies: ApiPolicy[] = [
         {
+          policyName: '학칙',
           title: '학칙',
-          fileNo: '868',
-          previewUrl: 'https://example.com/preview/868',
-          downloadUrl: 'https://example.com/download/868'
+          sha: 'sha_868',
+          path: 'policies/학칙.md',
+          content: '# 학칙\n\n정책 내용'
         }
       ];
 
@@ -336,10 +345,10 @@ describe('Full Cron Workflow Integration', () => {
       expect(result2.stats.added).toBe(0);
       expect(result2.stats.updated).toBe(0);
 
-      // KV state should be identical
+      // KV state should be identical (using policyName as key)
       const allPolicies = kvManager.getPoliciesSnapshot();
       expect(allPolicies.size).toBe(1);
-      expect(allPolicies.get('학칙')?.fileNo).toBe('868');
+      expect(allPolicies.get('학칙')?.policyName).toBe('학칙');
     });
   });
 
@@ -353,10 +362,12 @@ describe('Full Cron Workflow Integration', () => {
       ];
 
       const policies: ApiPolicy[] = complexTitles.map((title, i) => ({
+        policyName: `정책_${i + 1}`,
         title,
-        fileNo: `${1000 + i}`,
-        previewUrl: `https://example.com/preview/${1000 + i}`,
-        downloadUrl: `https://example.com/download/${1000 + i}`
+        sha: `sha_${1000 + i}`,
+        path: `policies/정책_${i + 1}.md`,
+        content: `# ${title}\n\n정책 내용`,
+        fileNo: `${1000 + i}`
       }));
 
       const result = await synchronizer.synchronize(policies);
@@ -364,20 +375,24 @@ describe('Full Cron Workflow Integration', () => {
       expect(result.stats.added).toBe(4);
 
       const stored = kvManager.getPoliciesSnapshot();
-      for (const title of complexTitles) {
-        const policy = stored.get(title);
+      for (let i = 0; i < complexTitles.length; i++) {
+        const policyName = `정책_${i + 1}`;
+        const title = complexTitles[i];
+        const policy = stored.get(policyName);
         expect(policy).toBeDefined();
         expect(policy?.title).toBe(title);
+        expect(policy?.policyName).toBe(policyName);
       }
     });
 
     it('should handle large fileNo changes', async () => {
       const policies1: ApiPolicy[] = [
         {
+          policyName: '학칙정책',
           title: '학칙',
-          fileNo: '1',
-          previewUrl: 'https://example.com/preview/1',
-          downloadUrl: 'https://example.com/download/1'
+          sha: 'sha_1',
+          path: 'policies/학칙정책.md',
+          content: '# 학칙\n\n정책 내용'
         }
       ];
 
@@ -386,28 +401,23 @@ describe('Full Cron Workflow Integration', () => {
       // Simulate major version jump (e.g., archive migration)
       const policies2: ApiPolicy[] = [
         {
+          policyName: '학칙정책',
           title: '학칙',
-          fileNo: '999999',
-          previewUrl: 'https://example.com/preview/999999',
-          downloadUrl: 'https://example.com/download/999999'
+          sha: 'sha_999999',
+          path: 'policies/학칙정책.md',
+          content: '# 학칙\n\n정책 내용'
         }
       ];
 
       const result = await synchronizer.synchronize(policies2);
 
       expect(result.stats.updated).toBe(1);
-      expect(result.toUpdate[0].fileNo).toBe('999999');
     });
   });
 
   describe('Metadata Tracking', () => {
     it('should record accurate sync results', async () => {
-      const policies: ApiPolicy[] = Array.from({ length: 10 }, (_, i) => ({
-        title: `규정_${i + 1}`,
-        fileNo: `${1000 + i}`,
-        previewUrl: `https://example.com/preview/${1000 + i}`,
-        downloadUrl: `https://example.com/download/${1000 + i}`
-      }));
+      const policies: ApiPolicy[] = Array.from({ length: 10 }, (_, i) => createTestPolicy(i));
 
       const result = await synchronizer.synchronize(policies);
 
