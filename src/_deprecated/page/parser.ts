@@ -1,3 +1,13 @@
+/**
+ * DEPRECATED: Page Parser
+ *
+ * This module is deprecated and will be removed on 2026-01-20.
+ * HTML-based policy parsing has been replaced with GitHub markdown parsing.
+ *
+ * @deprecated Use GitHub markdown parser (src/github/markdown.ts) instead
+ * @removal-date 2026-01-20
+ */
+
 export interface PolicyLink {
   fileNo: string;
   previewUrl: string;

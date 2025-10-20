@@ -1,6 +1,14 @@
 /**
+ * DEPRECATED: Preview Content Fetcher
+ *
+ * This module is deprecated and will be removed on 2026-01-20.
+ * Preview API-based content fetching has been replaced with GitHub-based content.
+ *
  * Fetch policy content from PREVIEW_PARSER_BASE_URL
  * Uses atchmnflNo parameter with fileNo
+ *
+ * @deprecated Use GitHub API client (src/github/client.ts) instead
+ * @removal-date 2026-01-20
  */
 
 export interface PreviewContent {

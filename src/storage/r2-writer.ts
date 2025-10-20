@@ -1,7 +1,9 @@
-import type { PolicyLink } from '../page/parser';
+// DEPRECATED: Old modules moved to _deprecated/ (will be removed 2026-01-20)
+// These imports are kept for backward compatibility during the 90-day transition period
+import type { PolicyLink } from '../_deprecated/page/parser';
 import type { ApiPolicy, PolicyEntry } from '../kv/types';
-import { fetchPreviewContent } from '../preview/fetcher';
-import { formatPolicyAsMarkdown, type PolicyMarkdownData } from '../preview/formatter';
+import { fetchPreviewContent } from '../_deprecated/preview/fetcher';
+import { formatPolicyAsMarkdown, type PolicyMarkdownData } from '../_deprecated/preview/formatter';
 
 export interface WriteResult {
   saved: boolean;

@@ -1,3 +1,13 @@
+/**
+ * DEPRECATED: Preview Content Formatter
+ *
+ * This module is deprecated and will be removed on 2026-01-20.
+ * Markdown formatting has been updated for v2.0.0 with GitHub-based metadata.
+ *
+ * @deprecated Use formatPolicyAsMarkdownV2 (src/storage/r2-writer.ts) instead
+ * @removal-date 2026-01-20
+ */
+
 import type { PreviewContent } from './fetcher';
 
 export interface PolicyMarkdownData {

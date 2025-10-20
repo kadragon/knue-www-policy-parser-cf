@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchPreviewContent } from '../src/preview/fetcher';
-import { formatPolicyAsMarkdown } from '../src/preview/formatter';
-import type { PolicyMarkdownData } from '../src/preview/formatter';
+import { fetchPreviewContent } from '../src/_deprecated/preview/fetcher';
+import { formatPolicyAsMarkdown } from '../src/_deprecated/preview/formatter';
+import type { PolicyMarkdownData } from '../src/_deprecated/preview/formatter';
 
 describe('Preview Module', () => {
   describe('fetchPreviewContent', () => {

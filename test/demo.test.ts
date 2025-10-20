@@ -1,5 +1,5 @@
 import { describe, it } from 'vitest';
-import { formatPolicyAsMarkdown } from '../src/preview/formatter';
+import { formatPolicyAsMarkdown } from '../src/_deprecated/preview/formatter';
 
 describe('Markdown Demo - Single Policy', () => {
   it('should show how a single policy becomes markdown', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { writeLinksToR2, writePoliciestoR2ByPolicyNameV2, writePolicyEntriesToR2V2, formatPolicyAsMarkdownV2 } from '../src/storage/r2-writer';
-import type { PolicyLink } from '../src/page/parser';
+import type { PolicyLink } from '../src/_deprecated/page/parser';
 import type { ApiPolicy, PolicyEntry } from '../src/kv/types';
 
 const mockLinks: PolicyLink[] = [
