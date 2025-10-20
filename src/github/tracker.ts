@@ -99,6 +99,33 @@ export class ChangeTracker {
   }
 
   /**
+   * Load the full set of policy documents for a commit
+   *
+   * Reuses prefetched PolicyDocument instances (e.g., added/modified files)
+   * to avoid redundant GitHub blob requests.
+   */
+  async getAllPolicies(
+    owner: string,
+    repo: string,
+    commitSHA: string,
+    prefetched: PolicyDocument[] = []
+  ): Promise<PolicyDocument[]> {
+    const prefetchedMap = new Map(prefetched.map(policy => [policy.path, policy]));
+
+    const policies = await this.loadPoliciesFromTree(
+      owner,
+      repo,
+      commitSHA,
+      prefetchedMap,
+      'full'
+    );
+
+    console.log(`[Tracker] Loaded ${policies.length} policies for commit ${commitSHA.substring(0, 7)}`);
+
+    return policies;
+  }
+
+  /**
    * Fetch all markdown files as added (first run scenario)
    */
   private async fetchAllFilesAsAdded(
@@ -106,32 +133,58 @@ export class ChangeTracker {
     repo: string,
     commitSHA: string
   ): Promise<ChangeSet> {
-    const tree = await this.client.getFileTree(owner, repo, commitSHA, true);
+    const added = await this.loadPoliciesFromTree(owner, repo, commitSHA, new Map(), 'initial');
+    console.log(`[Tracker] Initial sync: ${added.length} policies found`);
 
-    const added: PolicyDocument[] = [];
+    return { added, modified: [], deleted: [] };
+  }
+
+  /**
+   * Helper: Load policies from repository tree for a specific commit
+   *
+   * @param prefetched Map of path -> PolicyDocument for files already fetched
+   * @param logContext Controls per-policy logging verbosity
+   */
+  private async loadPoliciesFromTree(
+    owner: string,
+    repo: string,
+    commitSHA: string,
+    prefetched: Map<string, PolicyDocument>,
+    logContext: 'initial' | 'full'
+  ): Promise<PolicyDocument[]> {
+    const tree = await this.client.getFileTree(owner, repo, commitSHA, true);
+    const policies: PolicyDocument[] = [];
 
     for (const entry of tree) {
-      // Only process markdown files (excluding README)
       if (entry.type !== 'blob' || !shouldProcessFile(entry.path)) {
+        continue;
+      }
+
+      const cached = prefetched.get(entry.path);
+      if (cached) {
+        policies.push(cached);
+        if (logContext === 'initial') {
+          console.log(`[Tracker] ADD (initial): ${cached.policyName}`);
+        }
         continue;
       }
 
       try {
         const content = await this.client.getFileContent(owner, repo, entry.sha);
         const policy = parseMarkdown(content, entry.path, entry.sha);
-        added.push(policy);
-        console.log(`[Tracker] ADD (initial): ${policy.policyName}`);
+        policies.push(policy);
+
+        if (logContext === 'initial') {
+          console.log(`[Tracker] ADD (initial): ${policy.policyName}`);
+        }
       } catch (error) {
         console.error(
           `[Tracker] Failed to fetch ${entry.path}:`,
           error instanceof Error ? error.message : String(error)
         );
-        // Continue with other files
       }
     }
 
-    console.log(`[Tracker] Initial sync: ${added.length} policies found`);
-
-    return { added, modified: [], deleted: [] };
+    return policies;
   }
 }

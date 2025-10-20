@@ -47,6 +47,9 @@ describe('Policy Parser Integration', () => {
               text: async () => item.content
             }
           } as unknown as R2ObjectBody;
+        },
+        delete: async (key: string) => {
+          storage.delete(key);
         }
       } as unknown as R2Bucket,
       POLICY_REGISTRY: {

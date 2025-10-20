@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { writePoliciestoR2ByPolicyNameV2, writePolicyEntriesToR2V2, formatPolicyAsMarkdownV2 } from '../src/storage/r2-writer';
+import {
+  writePoliciestoR2ByPolicyNameV2,
+  writePolicyEntriesToR2V2,
+  deletePoliciesFromR2,
+  formatPolicyAsMarkdownV2
+} from '../src/storage/r2-writer';
 import type { ApiPolicy, PolicyEntry } from '../src/kv/types';
 
 describe('writePoliciestoR2ByPolicyNameV2 (v2.0.0)', () => {
@@ -44,6 +49,9 @@ describe('writePoliciestoR2ByPolicyNameV2 (v2.0.0)', () => {
             text: async () => item.content
           }
         } as unknown as R2ObjectBody;
+      },
+      delete: async (key: string) => {
+        storage.delete(key);
       }
     } as unknown as R2Bucket;
   });
@@ -150,6 +158,9 @@ describe('writePoliciestoR2ByPolicyNameV2 (v2.0.0)', () => {
           metadata: (options?.httpMetadata || {}) as R2HTTPMetadata
         });
         return { key } as R2Object;
+      },
+      delete: async (key: string) => {
+        storage.delete(key);
       }
     } as unknown as R2Bucket;
 
@@ -183,6 +194,52 @@ describe('writePoliciestoR2ByPolicyNameV2 (v2.0.0)', () => {
   });
 });
 
+describe('deletePoliciesFromR2', () => {
+  let mockBucket: R2Bucket;
+  let deletedKeys: string[];
+  let failureNames: Set<string>;
+
+  beforeEach(() => {
+    deletedKeys = [];
+    failureNames = new Set();
+
+    mockBucket = {
+      delete: async (key: string) => {
+        const policyName = key.replace('policies/', '').replace('/policy.md', '');
+        if (failureNames.has(policyName)) {
+          throw new Error(`Failed to delete ${policyName}`);
+        }
+        deletedKeys.push(key);
+      }
+    } as unknown as R2Bucket;
+  });
+
+  it('should delete policies from R2 bucket', async () => {
+    const result = await deletePoliciesFromR2(mockBucket, ['학칙', '규정1']);
+
+    expect(result.deleted).toHaveLength(2);
+    expect(result.errors).toHaveLength(0);
+    expect(deletedKeys).toEqual([
+      'policies/학칙/policy.md',
+      'policies/규정1/policy.md'
+    ]);
+  });
+
+  it('should continue deleting when an error occurs', async () => {
+    failureNames.add('학칙');
+
+    const result = await deletePoliciesFromR2(mockBucket, ['학칙', '규정1']);
+
+    expect(result.deleted).toHaveLength(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toEqual({
+      policyName: '학칙',
+      error: 'Failed to delete 학칙'
+    });
+    expect(deletedKeys).toContain('policies/규정1/policy.md');
+  });
+});
+
 describe('writePolicyEntriesToR2V2', () => {
   let mockBucket: R2Bucket;
   let storage: Map<string, { content: string; metadata: R2HTTPMetadata }>;
@@ -209,6 +266,9 @@ describe('writePolicyEntriesToR2V2', () => {
           metadata: (options?.httpMetadata || {}) as R2HTTPMetadata
         });
         return { key } as R2Object;
+      },
+      delete: async (key: string) => {
+        storage.delete(key);
       }
     } as unknown as R2Bucket;
   });

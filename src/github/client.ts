@@ -186,10 +186,7 @@ export class GitHubClient {
     const binaryString = atob(cleaned);
 
     // Convert binary string to UTF-8
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
+    const bytes = Uint8Array.from(binaryString, char => char.charCodeAt(0));
 
     return new TextDecoder('utf-8').decode(bytes);
   }

@@ -5,6 +5,12 @@ export interface WriteResultV2 {
   skipped: boolean;
   path?: string;
   savedPolicies?: { policyName: string; path: string }[];
+  errors?: Array<{ policyName: string; error: string }>;
+}
+
+export interface DeleteResultV2 {
+  deleted: { policyName: string; path: string }[];
+  errors: Array<{ policyName: string; error: string }>;
 }
 
 /**
@@ -121,7 +127,8 @@ export async function writePoliciestoR2ByPolicyNameV2(
   return {
     saved: savedPolicies.length > 0,
     skipped: savedPolicies.length === 0,
-    savedPolicies: savedPolicies.length > 0 ? savedPolicies : undefined
+    savedPolicies: savedPolicies.length > 0 ? savedPolicies : undefined,
+    errors: errors.length > 0 ? errors : undefined
   };
 }
 
@@ -191,8 +198,45 @@ export async function writePolicyEntriesToR2V2(
   return {
     saved: savedPolicies.length > 0,
     skipped: savedPolicies.length === 0,
-    savedPolicies: savedPolicies.length > 0 ? savedPolicies : undefined
+    savedPolicies: savedPolicies.length > 0 ? savedPolicies : undefined,
+    errors: errors.length > 0 ? errors : undefined
   };
+}
+
+/**
+ * Delete policy markdown files from R2 (v2.0.0)
+ *
+ * @param bucket - R2 bucket reference
+ * @param policyNames - Array of policyName identifiers to delete
+ * @returns DeleteResultV2 with deleted policy details and errors, if any
+ */
+export async function deletePoliciesFromR2(
+  bucket: R2Bucket,
+  policyNames: string[]
+): Promise<DeleteResultV2> {
+  const deleted: { policyName: string; path: string }[] = [];
+  const errors: Array<{ policyName: string; error: string }> = [];
+
+  for (const policyName of policyNames) {
+    const path = `policies/${policyName}/policy.md`;
+    try {
+      await bucket.delete(path);
+      deleted.push({ policyName, path });
+      console.log(`✓ [R2 v2] Deleted policy: ${path}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push({ policyName, error: message });
+      console.error(`✗ [R2 v2] Failed to delete policy "${policyName}":`, error);
+    }
+  }
+
+  if (errors.length > 0) {
+    console.warn(`[R2 v2] Delete completed with ${errors.length} errors:`, errors);
+  } else if (policyNames.length > 0) {
+    console.log(`✓ [R2 v2] Deleted ${deleted.length}/${policyNames.length} policies from R2`);
+  }
+
+  return { deleted, errors };
 }
 
 /**
