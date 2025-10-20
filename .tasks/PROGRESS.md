@@ -46,8 +46,8 @@
 - ✅ PolicySynchronizer updated for sha-based change detection (src/kv/synchronizer.ts)
 - ✅ Comprehensive KV sync tests written (18 tests, all passing)
 
-### Phase 5-6: R2 Writer v2.0.0 🟢 IN PROGRESS
-**Duration**: ~30 minutes so far
+### Phase 5-6: R2 Writer v2.0.0 ✅ COMPLETE
+**Duration**: ~30 minutes
 
 - ✅ v2.0.0 types & interfaces added (PolicyMarkdownDataV2, WriteResultV2)
 - ✅ `formatPolicyAsMarkdownV2()` implemented with YAML front matter
@@ -59,8 +59,19 @@
 - ✅ WriteResultV2 type corrected (now independent, not extending WriteResult)
 - ✅ All r2-writer tests pass: 22/22 ✅
 
+### Phase 7: Main Workflow Integration 🟢 IN PROGRESS
+**Duration**: ~30 minutes so far
+
+- ✅ src/index.ts updated for GitHub-based workflow
+- ✅ Replaced HTML parsing with GitHub API calls
+- ✅ Implemented commit-based change detection
+- ✅ Integrated all GitHub modules (client, tracker, markdown parser)
+- ✅ R2 v2.0.0 writer integrated
+- ✅ Type errors resolved (index.ts fully typed)
+- ⏳ Integration tests pending (need update for v2.0.0 data model)
+
 ### Remaining Phases
-- Phase 7-12: Pending
+- Phase 8-12: Pending
 
 ---
 
@@ -95,14 +106,14 @@
 | Phase 2: Specification | 1h | 45m | ✅ |
 | Phase 3: GitHub Integration | 2h | 1h | ✅ |
 | Phase 4: Data Model Migration | 1h | 1.5h | ✅ |
-| Phase 5-6: R2 Writer Refactor | 2h | 0.5h | 🟢 |
-| Phase 7: Main Integration | 1h | - | 📋 |
+| Phase 5-6: R2 Writer Refactor | 2h | 0.5h | ✅ |
+| Phase 7: Main Integration | 1h | 0.5h | 🟢 |
 | Phase 8: Environment Config | 15m | - | 📋 |
 | Phase 9: Testing | 2h | - | 📋 |
 | Phase 10: Deprecation | 30m | - | 📋 |
 | Phase 11: Documentation | 1h | - | 📋 |
 | Phase 12: Deployment | 30m | - | 📋 |
-| **Total** | **~11.25h** | **4h** | **~28% complete** |
+| **Total** | **~11.25h** | **4.5h** | **~30% complete** |
 
 ---
 
@@ -112,7 +123,13 @@
 - ✅ Phase 2: Specification complete
 - ✅ Phase 3: GitHub Integration complete (59 tests passing)
 - ✅ Phase 4: Data Model migration complete (18 tests passing)
-- 🟢 Phase 5-6: R2 Writer v2.0.0 in progress (22 tests passing, type fixes applied)
-- 📋 Phases 7-12: Pending
+- ✅ Phase 5-6: R2 Writer v2.0.0 complete (22 tests passing)
+- 🟢 Phase 7: Main Workflow Integration in progress (index.ts fully updated and typed)
+- 📋 Phases 8-12: Pending
 
-**Latest**: Phase 5-6 R2 Writer implementation reviewed, tested, and documented. Ready for commit.
+**Latest**: Phase 7 workflow refactored from HTML parsing to GitHub API. index.ts now:
+- Initializes GitHub client
+- Detects changes via commit comparison
+- Converts GitHub files to ApiPolicy objects
+- Uses R2 Writer v2.0.0
+- Tracks commit SHAs in KV metadata
