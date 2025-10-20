@@ -212,12 +212,14 @@ describe('Full Cron Workflow Integration', () => {
       const policies = kvManager.getPoliciesSnapshot();
       expect(policies.size).toBe(52);
 
-      // Verify specific updates
-      const updated46 = policies.get('규정_46');
-      expect(updated46?.fileNo).toBe('2000');
+      // Verify specific updates (using policyName as key, not title)
+      const updated46 = policies.get('정책_46');
+      expect(updated46).toBeDefined();
+      expect(updated46?.title).toBe('규정_46');
+      expect(updated46?.fileNo).toBe('2000'); // Updated in Day 2 test
 
       // Verify new policies exist
-      const new1 = policies.get('신규규정_1');
+      const new1 = policies.get('신규정책_1');
       expect(new1).toBeDefined();
       expect(new1?.fileNo).toBe('3000');
 
@@ -253,24 +255,24 @@ describe('Full Cron Workflow Integration', () => {
       // Verify results
       expect(result.stats.deleted).toBe(5);
       expect(result.toDelete).toEqual([
-        '규정_6',
-        '규정_7',
-        '규정_8',
-        '규정_9',
-        '규정_10'
+        '정책_6',
+        '정책_7',
+        '정책_8',
+        '정책_9',
+        '정책_10'
       ]);
 
       // Verify KV state
       const policies = kvManager.getPoliciesSnapshot();
       expect(policies.size).toBe(5);
 
-      // Verify deleted policies don't exist
-      expect(policies.get('규정_6')).toBeUndefined();
-      expect(policies.get('규정_10')).toBeUndefined();
+      // Verify deleted policies don't exist (using policyName as key)
+      expect(policies.get('정책_6')).toBeUndefined();
+      expect(policies.get('정책_10')).toBeUndefined();
 
-      // Verify remaining policies exist
-      expect(policies.get('규정_1')).toBeDefined();
-      expect(policies.get('규정_5')).toBeDefined();
+      // Verify remaining policies exist (using policyName as key)
+      expect(policies.get('정책_1')).toBeDefined();
+      expect(policies.get('정책_5')).toBeDefined();
     });
   });
 
@@ -294,12 +296,14 @@ describe('Full Cron Workflow Integration', () => {
         // Verify all policies have required fields
         const allPolicies = kvManager.getPoliciesSnapshot();
         for (const [_, policy] of allPolicies) {
+          expect(policy.policyName).toBeDefined();
           expect(policy.title).toBeDefined();
-          expect(policy.fileNo).toBeDefined();
+          expect(policy.sha).toBeDefined();
+          expect(policy.path).toBeDefined();
           expect(policy.status).toBe('active');
           expect(policy.lastUpdated).toBeDefined();
-          expect(policy.previewUrl).toBeDefined();
-          expect(policy.downloadUrl).toBeDefined();
+          // v2.0.0 uses GitHub-based fields, not preview URLs
+          expect(policy.fileNo).toBeDefined(); // Optional backward compatibility field
         }
       }
 
@@ -331,9 +335,10 @@ describe('Full Cron Workflow Integration', () => {
       expect(result2.stats.added).toBe(0);
       expect(result2.stats.updated).toBe(0);
 
-      // KV state should be identical
+      // KV state should be identical (using policyName as key)
       const allPolicies = kvManager.getPoliciesSnapshot();
       expect(allPolicies.size).toBe(1);
+      expect(allPolicies.get('학칙')?.policyName).toBe('학칙');
       expect(allPolicies.get('학칙')?.fileNo).toBe('868');
     });
   });
@@ -361,10 +366,13 @@ describe('Full Cron Workflow Integration', () => {
       expect(result.stats.added).toBe(4);
 
       const stored = kvManager.getPoliciesSnapshot();
-      for (const title of complexTitles) {
-        const policy = stored.get(title);
+      for (let i = 0; i < complexTitles.length; i++) {
+        const policyName = `정책_${i + 1}`;
+        const title = complexTitles[i];
+        const policy = stored.get(policyName);
         expect(policy).toBeDefined();
         expect(policy?.title).toBe(title);
+        expect(policy?.policyName).toBe(policyName);
       }
     });
 
