@@ -92,8 +92,20 @@
 - ✅ Type checking: ✅ (zero errors)
 - ✅ Coverage: 78.66%
 
+### Phase 10: Deprecation & Cleanup ✅ COMPLETE
+**Duration**: ~20 minutes
+
+- ✅ Created `src/_deprecated/` directory structure
+- ✅ Moved `src/page/` → `src/_deprecated/page/`
+- ✅ Moved `src/preview/` → `src/_deprecated/preview/`
+- ✅ Created deprecation index files with warnings
+- ✅ Added @deprecated JSDoc comments to all files
+- ✅ Updated imports: r2-writer.ts + 4 test files
+- ✅ Set removal date: 2026-01-20 (90-day transition)
+- ✅ All 148 tests passing
+
 ### Remaining Phases
-- Phase 10-12: Pending
+- Phase 11-12: Pending
 
 ---
 
@@ -136,10 +148,10 @@
 | Phase 7: Test Migration | 1h | 45m | ✅ |
 | Phase 8: Environment Config | 15m | 30m | ✅ |
 | Phase 9: Testing | 2h | 30m | ✅ |
-| Phase 10: Deprecation | 30m | - | 📋 |
+| Phase 10: Deprecation | 30m | 20m | ✅ |
 | Phase 11: Documentation | 1h | - | 📋 |
 | Phase 12: Deployment | 30m | - | 📋 |
-| **Total** | **~11.25h** | **6.25h** | **~55% complete** |
+| **Total** | **~11.25h** | **6.75h** | **~60% complete** |
 
 ---
 
@@ -153,18 +165,20 @@
 - ✅ Phase 7: Test Migration complete (16 KV manager tests passing)
 - ✅ Phase 8: Environment Configuration complete (wrangler.jsonc + .env.example)
 - ✅ Phase 9: Testing & Validation complete (all 148 tests passing)
-- 📋 Phases 10-12: Pending
+- ✅ Phase 10: Deprecation & Cleanup complete (legacy modules moved to _deprecated)
+- 📋 Phases 11-12: Pending
 
 **Current Test Status**:
 - Core functionality tests: **141 passing** ✅
 - KV Manager tests: **16 passing** ✅
 - GitHub module tests: **59 passing** ✅
-- Integration tests: **8 passing** (all fixed) ✅
-- Workflow tests: **5 passing** (all fixed) ✅
+- Integration tests: **8 passing** ✅
+- Workflow tests: **5 passing** ✅
 - Total: **148 passing, 0 failing** ✅
 
-**Latest**: Phase 9 complete and committed (8e9dd16)
-- All 7 failing integration tests fixed
-- policyName-based assertions throughout
-- GitHub API mock fixed (UTF-8 encoding, valid SHA)
-- Ready for Phase 10: Deprecation & Cleanup
+**Latest**: Phase 10 complete and committed (20c9b46)
+- Legacy modules moved to `src/_deprecated/` for 90-day transition
+- Deprecation warnings and migration guides added
+- All imports updated (r2-writer.ts + 4 test files)
+- Removal date set: 2026-01-20
+- Ready for Phase 11: Documentation
