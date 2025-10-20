@@ -453,27 +453,7 @@ describe('PolicySynchronizer (v2.0.0)', () => {
       expect(lastUpdated.getTime()).toBeLessThanOrEqual(afterSync.getTime());
     });
 
-    it('should preserve backward compatibility fields (fileNo, previewUrl, downloadUrl)', async () => {
-      const currentPolicies: ApiPolicy[] = [
-        {
-          policyName: '학칙',
-          title: '학칙',
-          sha: 'abc123def456789abcdef0123456789abcdef01',
-          path: 'policies/학칙.md',
-          content: '# 학칙',
-          // v1.x backward compatibility fields
-          fileNo: '868',
-          previewUrl: 'https://example.com/preview/868',
-          downloadUrl: 'https://example.com/download/868'
-        }
-      ];
 
-      const result = await synchronizer.synchronize(currentPolicies);
-
-      expect(result.toAdd[0].fileNo).toBe('868');
-      expect(result.toAdd[0].previewUrl).toBe('https://example.com/preview/868');
-      expect(result.toAdd[0].downloadUrl).toBe('https://example.com/download/868');
-    });
 
     it('should handle Korean characters in policyName correctly', async () => {
       const currentPolicies: ApiPolicy[] = [

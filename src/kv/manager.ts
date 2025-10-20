@@ -109,22 +109,14 @@ export class KVManager {
    * v2.0.0: Uses policyName as key
    */
   async setPolicyEntries(policies: PolicyEntry[]): Promise<void> {
-    const operations = policies.map(policy => ({
-      key: `${KEY_PREFIX.POLICY}${policy.policyName}`,
-      value: JSON.stringify(policy)
-    }));
-
-    // Process in batches to avoid rate limits
-    const batchSize = 100;
-    for (let i = 0; i < operations.length; i += batchSize) {
-      const batch = operations.slice(i, i + batchSize);
+    for (const policy of policies) {
+      const key = `${KEY_PREFIX.POLICY}${policy.policyName}`;
+      const value = JSON.stringify(policy);
 
       try {
-        await Promise.all(
-          batch.map(op => this.namespace.put(op.key, op.value))
-        );
+        await this.namespace.put(key, value);
       } catch (error) {
-        console.error(`Failed to batch write policies (batch ${i / batchSize}):`, error);
+        console.error(`Failed to write policy entry for policyName "${policy.policyName}":`, error);
         throw error;
       }
     }
@@ -152,16 +144,13 @@ export class KVManager {
    * v2.0.0: Changed from deletePoliciesByTitles to deletePoliciesByNames
    */
   async deletePoliciesByNames(policyNames: string[]): Promise<void> {
-    const batchSize = 100;
-    for (let i = 0; i < policyNames.length; i += batchSize) {
-      const batch = policyNames.slice(i, i + batchSize);
+    for (const policyName of policyNames) {
+      const key = `${KEY_PREFIX.POLICY}${policyName}`;
 
       try {
-        await Promise.all(
-          batch.map(policyName => this.namespace.delete(`${KEY_PREFIX.POLICY}${policyName}`))
-        );
+        await this.namespace.delete(key);
       } catch (error) {
-        console.error(`Failed to batch delete policies (batch ${i / batchSize}):`, error);
+        console.error(`Failed to delete policy entry for policyName "${policyName}":`, error);
         throw error;
       }
     }
@@ -249,21 +238,14 @@ export class KVManager {
    * v2.0.0: Uses policyName as key
    */
   async enqueueMultiple(entries: QueueEntry[]): Promise<void> {
-    const operations = entries.map(entry => ({
-      key: `${KEY_PREFIX.QUEUE}${entry.policyName}`,
-      value: JSON.stringify(entry)
-    }));
-
-    const batchSize = 100;
-    for (let i = 0; i < operations.length; i += batchSize) {
-      const batch = operations.slice(i, i + batchSize);
+    for (const entry of entries) {
+      const key = `${KEY_PREFIX.QUEUE}${entry.policyName}`;
+      const value = JSON.stringify(entry);
 
       try {
-        await Promise.all(
-          batch.map(op => this.namespace.put(op.key, op.value))
-        );
+        await this.namespace.put(key, value);
       } catch (error) {
-        console.error(`Failed to batch enqueue entries (batch ${i / batchSize}):`, error);
+        console.error(`Failed to enqueue policy "${entry.policyName}" for processing:`, error);
         throw error;
       }
     }

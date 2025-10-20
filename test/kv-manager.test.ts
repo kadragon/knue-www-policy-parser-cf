@@ -66,8 +66,7 @@ describe('KVManager', () => {
         status: 'active',
         lastUpdated: new Date().toISOString(),
         sha: 'abc123def456',
-        path: 'policies/학칙.md',
-        fileNo: '868'
+        path: 'policies/학칙.md'
       };
 
       await kvManager.setPolicyEntry(policy);
@@ -89,8 +88,7 @@ describe('KVManager', () => {
           status: 'active',
           lastUpdated: new Date().toISOString(),
           sha: 'abc123def456',
-          path: 'policies/학칙.md',
-          fileNo: '868'
+          path: 'policies/학칙.md'
         },
         {
           policyName: '규정1',
@@ -98,8 +96,7 @@ describe('KVManager', () => {
           status: 'active',
           lastUpdated: new Date().toISOString(),
           sha: 'def456ghi789',
-          path: 'policies/규정1.md',
-          fileNo: '869'
+          path: 'policies/규정1.md'
         }
       ];
 
@@ -120,8 +117,7 @@ describe('KVManager', () => {
           status: 'active',
           lastUpdated: new Date().toISOString(),
           sha: 'abc123def456',
-          path: 'policies/학칙.md',
-          fileNo: '868'
+          path: 'policies/학칙.md'
         },
         {
           policyName: '규정1',
@@ -129,8 +125,7 @@ describe('KVManager', () => {
           status: 'active',
           lastUpdated: new Date().toISOString(),
           sha: 'def456ghi789',
-          path: 'policies/규정1.md',
-          fileNo: '869'
+          path: 'policies/규정1.md'
         }
       ];
 
@@ -149,8 +144,7 @@ describe('KVManager', () => {
         status: 'active',
         lastUpdated: new Date().toISOString(),
         sha: 'abc123def456',
-        path: 'policies/학칙.md',
-        fileNo: '868'
+        path: 'policies/학칙.md'
       };
 
       await kvManager.setPolicyEntry(policy);
@@ -168,8 +162,7 @@ describe('KVManager', () => {
           status: 'active',
           lastUpdated: new Date().toISOString(),
           sha: 'abc123def456',
-          path: 'policies/학칙.md',
-          fileNo: '868'
+          path: 'policies/학칙.md'
         },
         {
           policyName: '규정1',
@@ -177,8 +170,7 @@ describe('KVManager', () => {
           status: 'active',
           lastUpdated: new Date().toISOString(),
           sha: 'def456ghi789',
-          path: 'policies/규정1.md',
-          fileNo: '869'
+          path: 'policies/규정1.md'
         }
       ];
 
@@ -225,8 +217,7 @@ describe('KVManager', () => {
         operation: 'add',
         retryCount: 0,
         createdAt: new Date().toISOString(),
-        errorMessage: null,
-        fileNo: '868'
+        errorMessage: null
       };
 
       await kvManager.enqueueForProcessing(entry);
@@ -244,8 +235,7 @@ describe('KVManager', () => {
           operation: 'add',
           retryCount: 0,
           createdAt: new Date().toISOString(),
-          errorMessage: null,
-          fileNo: '868'
+          errorMessage: null
         },
         {
           policyName: '규정1',
@@ -253,8 +243,7 @@ describe('KVManager', () => {
           operation: 'update',
           retryCount: 0,
           createdAt: new Date().toISOString(),
-          errorMessage: null,
-          fileNo: '869'
+          errorMessage: null
         }
       ];
 
@@ -273,8 +262,7 @@ describe('KVManager', () => {
         operation: 'add',
         retryCount: 0,
         createdAt: new Date().toISOString(),
-        errorMessage: null,
-        fileNo: '868'
+        errorMessage: null
       };
 
       await kvManager.enqueueForProcessing(entry);
@@ -290,8 +278,7 @@ describe('KVManager', () => {
         operation: 'add',
         retryCount: 0,
         createdAt: new Date().toISOString(),
-        errorMessage: null,
-        fileNo: '868'
+        errorMessage: null
       };
 
       await kvManager.enqueueForProcessing(entry);
@@ -310,17 +297,13 @@ describe('KVManager', () => {
         status: 'active',
         lastUpdated: '2025-10-19T16:00:00Z',
         sha: 'abc123def456',
-        path: 'policies/복잡한제목.md',
-        fileNo: '12345',
-        previewUrl: 'https://example.com/preview?param=value&other=123',
-        downloadUrl: 'https://example.com/download?file=test.pdf'
+        path: 'policies/복잡한제목.md'
       };
 
       await kvManager.setPolicyEntry(policy);
       const retrieved = await kvManager.getPolicyByName('복잡한제목');
 
-      expect(retrieved?.fileNo).toBe('12345');
-      expect(retrieved?.previewUrl).toContain('param=value');
+      
     });
 
     it('should handle unicode characters', async () => {
@@ -330,8 +313,7 @@ describe('KVManager', () => {
         status: 'active',
         lastUpdated: new Date().toISOString(),
         sha: 'abc123def456',
-        path: 'policies/학칙.md',
-        fileNo: '868'
+        path: 'policies/학칙.md'
       };
 
       await kvManager.setPolicyEntry(policy);

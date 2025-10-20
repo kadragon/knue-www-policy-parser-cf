@@ -115,16 +115,14 @@ describe('Full Cron Workflow Integration', () => {
   let kvManager: IntegrationMockKVManager;
 
   // Helper to create test ApiPolicy objects (v2.0.0 structure)
-  const createTestPolicy = (i: number, title?: string, customFileNo?: string): ApiPolicy => {
+  const createTestPolicy = (i: number, title?: string): ApiPolicy => {
     const policyName = `정책_${i + 1}`;
-    const fileNo = customFileNo || `${1000 + i}`;
     return {
       policyName,
       title: title || `규정_${i + 1}`,
-      sha: `sha_${fileNo}`,
+      sha: `sha_${1000 + i}`,
       path: `policies/${policyName}.md`,
-      content: `# ${title || `규정_${i + 1}`}\n\n정책 내용`,
-      fileNo  // Optional for backward compatibility
+      content: `# ${title || `규정_${i + 1}`}\n\n정책 내용`
     };
   };
 
@@ -174,29 +172,45 @@ describe('Full Cron Workflow Integration', () => {
       const day2Policies: ApiPolicy[] = [
         // 45 unchanged
         ...Array.from({ length: 45 }, (_, i) => createTestPolicy(i)),
-        // 3 updated fileNo (규정_46, 규정_47, 규정_48)
-        createTestPolicy(45, '규정_46', '2000'),
-        createTestPolicy(46, '규정_47', '2001'),
-        createTestPolicy(47, '규정_48', '2002'),
+        // 3 updated (규정_46, 규정_47, 규정_48) - different sha to simulate updates
+        {
+          policyName: '정책_46',
+          title: '규정_46',
+          sha: 'sha_2000', // Updated sha
+          path: 'policies/정책_46.md',
+          content: '# 규정_46\n\n정책 내용'
+        },
+        {
+          policyName: '정책_47',
+          title: '규정_47',
+          sha: 'sha_2001', // Updated sha
+          path: 'policies/정책_47.md',
+          content: '# 규정_47\n\n정책 내용'
+        },
+        {
+          policyName: '정책_48',
+          title: '규정_48',
+          sha: 'sha_2002', // Updated sha
+          path: 'policies/정책_48.md',
+          content: '# 규정_48\n\n정책 내용'
+        },
         // 2 unchanged (규정_49, 규정_50)
-        createTestPolicy(48, '규정_49', '1048'),
-        createTestPolicy(49, '규정_50', '1049'),
+        createTestPolicy(48),
+        createTestPolicy(49),
         // 2 new policies
         {
           policyName: '신규정책_1',
           title: '신규규정_1',
           sha: 'sha_3000',
           path: 'policies/신규정책_1.md',
-          content: '# 신규규정_1\n\n새로운 정책',
-          fileNo: '3000'
+          content: '# 신규규정_1\n\n새로운 정책'
         },
         {
           policyName: '신규정책_2',
           title: '신규규정_2',
           sha: 'sha_3001',
           path: 'policies/신규정책_2.md',
-          content: '# 신규규정_2\n\n새로운 정책',
-          fileNo: '3001'
+          content: '# 신규규정_2\n\n새로운 정책'
         }
       ];
 
@@ -216,12 +230,9 @@ describe('Full Cron Workflow Integration', () => {
       const updated46 = policies.get('정책_46');
       expect(updated46).toBeDefined();
       expect(updated46?.title).toBe('규정_46');
-      expect(updated46?.fileNo).toBe('2000'); // Updated in Day 2 test
-
       // Verify new policies exist
       const new1 = policies.get('신규정책_1');
       expect(new1).toBeDefined();
-      expect(new1?.fileNo).toBe('3000');
 
       // Verify queue has correct operations
       // Queue contains entries from both syncs. First sync created 50, second sync updated/added 5
@@ -282,9 +293,10 @@ describe('Full Cron Workflow Integration', () => {
       const cycles = 3;
 
       for (let cycle = 0; cycle < cycles; cycle++) {
-        const policies: ApiPolicy[] = Array.from({ length: 20 }, (_, i) =>
-          createTestPolicy(i, undefined, `${2000 + i + cycle * 100}`)
-        );
+        const policies: ApiPolicy[] = Array.from({ length: 20 }, (_, i) => ({
+          ...createTestPolicy(i),
+          sha: `sha_cycle_${cycle}_${i}` // Different sha for each cycle to simulate updates
+        }));
 
         const result = await synchronizer.synchronize(policies);
         if (cycle === 0) {
@@ -303,7 +315,6 @@ describe('Full Cron Workflow Integration', () => {
           expect(policy.status).toBe('active');
           expect(policy.lastUpdated).toBeDefined();
           // v2.0.0 uses GitHub-based fields, not preview URLs
-          expect(policy.fileNo).toBeDefined(); // Optional backward compatibility field
         }
       }
 
@@ -318,8 +329,7 @@ describe('Full Cron Workflow Integration', () => {
           title: '학칙',
           sha: 'sha_868',
           path: 'policies/학칙.md',
-          content: '# 학칙\n\n정책 내용',
-          fileNo: '868'
+          content: '# 학칙\n\n정책 내용'
         }
       ];
 
@@ -339,7 +349,6 @@ describe('Full Cron Workflow Integration', () => {
       const allPolicies = kvManager.getPoliciesSnapshot();
       expect(allPolicies.size).toBe(1);
       expect(allPolicies.get('학칙')?.policyName).toBe('학칙');
-      expect(allPolicies.get('학칙')?.fileNo).toBe('868');
     });
   });
 
@@ -383,8 +392,7 @@ describe('Full Cron Workflow Integration', () => {
           title: '학칙',
           sha: 'sha_1',
           path: 'policies/학칙정책.md',
-          content: '# 학칙\n\n정책 내용',
-          fileNo: '1'
+          content: '# 학칙\n\n정책 내용'
         }
       ];
 
@@ -397,15 +405,13 @@ describe('Full Cron Workflow Integration', () => {
           title: '학칙',
           sha: 'sha_999999',
           path: 'policies/학칙정책.md',
-          content: '# 학칙\n\n정책 내용',
-          fileNo: '999999'
+          content: '# 학칙\n\n정책 내용'
         }
       ];
 
       const result = await synchronizer.synchronize(policies2);
 
       expect(result.stats.updated).toBe(1);
-      expect(result.toUpdate[0].fileNo).toBe('999999');
     });
   });
 

@@ -166,8 +166,6 @@ export class PolicySynchronizer {
 
   /**
    * Helper: Create a PolicyEntry from ApiPolicy
-   *
-   * v2.0.0: Added policyName, sha, path; made fileNo, previewUrl, downloadUrl optional
    */
   private createPolicyEntry(apiPolicy: ApiPolicy): PolicyEntry {
     return {
@@ -176,19 +174,12 @@ export class PolicySynchronizer {
       status: 'active',
       lastUpdated: new Date().toISOString(),
       sha: apiPolicy.sha,
-      path: apiPolicy.path,
-
-      // v1.x: Optional backward compatibility fields
-      fileNo: apiPolicy.fileNo,
-      previewUrl: apiPolicy.previewUrl,
-      downloadUrl: apiPolicy.downloadUrl
+      path: apiPolicy.path
     };
   }
 
   /**
    * Helper: Create a QueueEntry for processing
-   *
-   * v2.0.0: Changed to use policyName and sha
    */
   private createQueueEntry(policy: PolicyEntry, operation: 'add' | 'update'): QueueEntry {
     return {
@@ -197,10 +188,7 @@ export class PolicySynchronizer {
       operation,
       retryCount: 0,
       createdAt: new Date().toISOString(),
-      errorMessage: null,
-
-      // v1.x: Optional backward compatibility
-      fileNo: policy.fileNo
+      errorMessage: null
     };
   }
 
