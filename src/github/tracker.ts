@@ -9,8 +9,9 @@ import type { GitHubClient } from './client';
 import { parseMarkdown, shouldProcessFile } from './markdown';
 
 export class ChangeTracker {
-  // GitHub API subrequest limit is 50; process in batches of 40 to be safe
-  private static readonly BATCH_SIZE = 40;
+  // GitHub API subrequest limit is 50; process in batches of 20 to stay well within limit
+  // (getFileTree=1 + batch requests + other ops should stay <50)
+  private static readonly BATCH_SIZE = 20;
 
   constructor(private client: GitHubClient) {}
 
