@@ -166,7 +166,7 @@ curl -s "https://api.github.com/repos/kadragon/knue-policy-hub/git/trees/main?re
    → Fallback to filename as title, log warning
 
 4. **Archive old preview fetcher code?**
-   → Mark as deprecated, move to `src/_deprecated/` after 30-day validation period
+   → Legacy preview modules removed entirely on 2025-10-20; no archival required.
 
 ## Next Steps
 

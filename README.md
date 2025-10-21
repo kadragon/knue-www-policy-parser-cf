@@ -31,8 +31,7 @@ src/
 ├── github/               # GitHub REST API 클라이언트, diff/트리/마크다운 파서
 ├── kv/                   # policyName 기반 KV 타입, 매니저, 동기화 로직
 ├── storage/r2-writer.ts  # 정책 Markdown v2.0.0 작성 및 저장
-├── utils/                # 날짜/로그 헬퍼 등 공용 유틸리티
-└── _deprecated/          # 2026-01-20 제거 예정인 구 HTML/Preview 모듈 (읽기 전용)
+└── utils/                # 날짜/로그 헬퍼 등 공용 유틸리티
 
 test/
 ├── github.*.test.ts      # GitHub 모듈 단위 테스트
@@ -66,9 +65,6 @@ npm install
 2. `wrangler.jsonc`의 `vars` 및 `kv_namespaces`/`r2_buckets` 섹션이 프로덕션 바인딩과 일치하는지 확인합니다.
 3. GitHub 토큰을 사용할 경우 Workers Secrets(`wrangler secret put GITHUB_TOKEN`)로 설정합니다.
 
-### 기존 변수 (폐기 예정)
-`POLICY_PAGE_URL`, `POLICY_PAGE_KEY`, `PREVIEW_PARSER_BASE_URL`, `BEARER_TOKEN` 등 Preview API 관련 값은 2026-01-20 이후 제거됩니다. 현재는 `_deprecated/` 모듈 테스트 유지용으로만 남아 있습니다.
-
 ## 로컬 개발 플로우
 ```bash
 # 타입 검사
@@ -77,7 +73,7 @@ npm run typecheck
 # 린트
 npm run lint
 
-# 전체 테스트 (148개 케이스)
+# 전체 테스트
 npm test
 
 # 커버리지 보고서
@@ -86,10 +82,6 @@ npm run test:coverage
 # 스케줄러 시뮬레이션 (GitHub 호출은 테스트 더블 사용)
 wrangler dev --test-scheduled
 ```
-
-- `test/integration/workflow.test.ts`는 GitHub API를 모킹하므로 네트워크 없이도 실행 가능합니다.
-- `_deprecated/` 경로의 테스트는 회귀 검사용이며, 신규 구현에서는 참조하지 않습니다.
-
 ## 배포
 ```bash
 npm run deploy
@@ -111,7 +103,7 @@ npm run deploy
 - KV 키: `policy:{policyName}` (OLD: `policy:{title}`)
 - R2 경로: `policies/{policyName}/policy.md` (OLD: `policies/{fileNo}/policy.md`)
 - Sync 메타데이터: `metadata:sync:lastCommit`에 최신 커밋 SHA 저장
-- `_deprecated/` 디렉터리는 2026-01-20에 삭제 예정이며, Preview API 경로에 대한 안전한 롤백을 위해 90일간 유지됩니다.
+- Preview API 기반 파서 및 프리뷰 모듈은 2025-10-20에 완전히 제거되었습니다.
 
 ## 참고 문서
 - `.spec/github-integration.spec.md` — GitHub API 계약

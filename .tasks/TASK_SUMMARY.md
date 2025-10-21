@@ -10,20 +10,19 @@
 - Converted KV schema to `policyName` primary keys and Git `sha` version tracking (`src/kv/*`).
 - Shipped R2 writer v2.0.0 with YAML front matter (`policyName`, `title`, `sha`, `path`, timestamps) and markdown passthrough.
 - Updated environment configuration (`wrangler.jsonc`, `.env.example`) to require `GITHUB_REPO`/`GITHUB_BRANCH` and deprecate Preview API variables.
-- Established `_deprecated/` module boundary with removal date 2026-01-20.
+- Preview API 관련 `_deprecated/` 모듈을 2025-10-20에 완전히 제거했습니다.
 
 ## Validation
 - `npm run lint` — ✅ (zero warnings)
 - `npm run typecheck` — ✅ (no TypeScript errors)
-- `npm test` — ✅ 148 tests passing (GitHub client, markdown parser, KV synchronizer, integration suites)
+- `npm test` — ✅ 전체 스위트 통과 (GitHub client, markdown parser, KV synchronizer, integration suites)
 - `npm run test:coverage` — ✅ 78.66% statements coverage
 
 ## Remaining Work
-1. **Phase 11 — Documentation**: Finalize README refresh, specs (`SPEC-POLICY-COLLECTOR-001` v2.0.0), and task docs. *(→ in progress)*
+1. **Phase 11 — Documentation**: Finalize README refresh, specs (`SPEC-POLICY-COLLECTOR-001` v2.1.0), and task docs. *(→ in progress)*
 2. **Phase 12 — Deployment & Monitoring**: Dry-run `wrangler dev --test-scheduled`, deploy to production, and observe first cron executions.
 
 ## Notes
 - KV migration preserves optional `fileNo`/`previewUrl` fields for a 90-day transition.
 - GitHub rate limits remain within unauthenticated thresholds; token support is available for spikes.
 - Legacy JSON snapshot export is disabled by default; re-enable deliberately if downstream consumers still rely on it.
-
