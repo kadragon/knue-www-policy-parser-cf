@@ -1,6 +1,6 @@
 ---
 id: SPEC-POLICY-COLLECTOR-001
-version: 2.0.0
+version: 2.1.0
 scope: global
 status: active
 supersedes: [SPEC-POLICY-COLLECTOR-001 v1.0.0]
@@ -14,7 +14,7 @@ owner: project-admin
 
 Cloudflare Worker scheduled daily to synchronize KNUE policy markdown files from the public GitHub repository `kadragon/knue-policy-hub`. The worker performs commit-based change detection, updates the `policy-registry` KV namespace using `policyName` as the primary identifier, and writes per-policy markdown exports to Cloudflare R2.
 
-Preview API enrichment and HTML crawling were removed in v2.0.0. Legacy modules remain under `src/_deprecated` for a 90-day rollback window and must not be invoked by the active workflow.
+Preview API enrichment and HTML crawling were removed in v2.0.0, and all legacy modules were deleted on 2025-10-20.
 
 ## Runtime Contracts
 
@@ -101,7 +101,6 @@ interface SyncMetadata {
 
 - **Unit Tests**: GitHub client (commit/tree/blob/diff), markdown parser edge cases, KV synchronizer diff logic, R2 writer YAML front matter.
 - **Integration Tests**: First-run scenario (no previous commit), unchanged commit short-circuit, mixed add/update/delete diff, rate-limit error propagation, large file skip.
-- **Regression Tests**: Ensure `_deprecated` modules remain unused by the main handler and that legacy snapshots are explicitly opted-in via feature flag (if retained).
 
 ## Security & Compliance
 
@@ -112,7 +111,5 @@ interface SyncMetadata {
 
 ## Migration Notes
 
-- `_deprecated` folder retains HTML scraping and preview enrichment code paths for audit purposes only. Removal date: 2026-01-20.
 - KV entries containing legacy fields (`fileNo`, `previewUrl`, `downloadUrl`) must remain readable; new writes omit these fields unless migration utilities populate them.
 - Snapshot JSON exports are optional and disabled by default in v2.0.0.
-

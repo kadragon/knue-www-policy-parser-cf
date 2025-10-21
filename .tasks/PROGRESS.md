@@ -101,16 +101,21 @@
 - ✅ Created deprecation index files with warnings
 - ✅ Added @deprecated JSDoc comments to all files
 - ✅ Updated imports: r2-writer.ts + 4 test files
-- ✅ Set removal date: 2026-01-20 (90-day transition)
+- ✅ Set removal date: 2026-01-20 (90-day transition; superseded by full removal on 2025-10-20)
 - ✅ All 148 tests passing
 
 ### Phase 11: Documentation ✅ COMPLETE
 **Duration**: ~45 minutes
 
 - ✅ Refreshed `README.md` to describe GitHub commit diff workflow, environment variables, and migration notes.
-- ✅ Updated `SPEC-POLICY-COLLECTOR-001` to v2.0.0 with GitHub-driven acceptance criteria.
+- ✅ Updated `SPEC-POLICY-COLLECTOR-001` to v2.1.0 with GitHub-driven acceptance criteria.
 - ✅ Revised `.tasks/TASK_SUMMARY.md` to capture new architecture, validation status, and remaining deployment work.
-- ✅ Logged documentation completion in `.tasks/PROGRESS.md` and kept `_deprecated/` guidance intact.
+- ✅ Logged documentation updates in `.tasks/PROGRESS.md` and, as of 2025-10-20, reflected full removal of Preview API modules.
+
+### Legacy Removal & Verification — 2025-10-20 ✅ COMPLETE
+- ✅ Removed `_deprecated/` tree and legacy regression suites (`test/parser.test.ts`, `test/integration/workflow.test.ts`)
+- ✅ Updated README/spec/plan/research/task summary to remove 90-day rollback references
+- ✅ Ran `npm test` (Vitest) — 124 tests passing, 0 failing
 
 ### Remaining Phases
 - Phase 12: Deployment & Monitoring — Pending
@@ -172,19 +177,14 @@
 - ✅ Phase 7: Test Migration complete (16 KV manager tests passing)
 - ✅ Phase 8: Environment Configuration complete (wrangler.jsonc + .env.example)
 - ✅ Phase 9: Testing & Validation complete (all 148 tests passing)
-- ✅ Phase 10: Deprecation & Cleanup complete (legacy modules moved to _deprecated)
+- ✅ Phase 10: Deprecation & Cleanup complete (legacy modules removed; no preview fallback remaining)
 - ✅ Phase 11: Documentation complete (README, spec, task docs updated)
 - 📋 Phase 12: Deployment & Monitoring pending
 
 **Current Test Status**:
-- Core functionality tests: **141 passing** ✅
-- KV Manager tests: **16 passing** ✅
-- GitHub module tests: **59 passing** ✅
-- Integration tests: **8 passing** ✅
-- Workflow tests: **5 passing** ✅
-- Total: **148 passing, 0 failing** ✅
+- Vitest suites (`npm test` @ 2025-10-20T17:06:34 local): **124 passing, 0 failing** ✅
 
-**Latest**: Phase 11 documentation refresh staged (no deploy yet)
-- README, specs, and task summary now describe GitHub-based sync model
-- All 148 tests still passing (no runtime changes)
+**Latest**: Legacy preview modules removed and documentation updated (2025-10-20)
+- README, specs, and task docs now reflect permanent GitHub-only workflow
+- `_deprecated/` regression suites deleted; fixture references eliminated
 - Preparing Phase 12 deployment checklist and monitoring plan

@@ -136,11 +136,9 @@ Migrate policy collection from slow preview API to fast GitHub repository-based 
 - [ ] Run `npm run typecheck` → zero errors
 
 ### Phase 10 — Deprecation & Cleanup 📋
-- [ ] Move `src/page/` to `src/_deprecated/page/`
-- [ ] Move `src/preview/` to `src/_deprecated/preview/`
-- [ ] Update imports to show deprecation warnings
-- [ ] Add deprecation notices to affected files
-- [ ] Schedule removal date (90 days from migration)
+- [x] Remove legacy `src/page/` and `src/preview/` modules (2025-10-20)
+- [x] Delete `_deprecated/` directory and associated regression tests
+- [x] Update docs/specs to reflect permanent Preview API removal
 
 ### Phase 11 — Documentation 📋
 - [ ] Update main README.md:
