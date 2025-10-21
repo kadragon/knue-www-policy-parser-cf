@@ -10,12 +10,12 @@
 - Converted KV schema to `policyName` primary keys and Git `sha` version tracking (`src/kv/*`).
 - Shipped R2 writer v2.0.0 with YAML front matter (`policyName`, `title`, `sha`, `path`, timestamps) and markdown passthrough.
 - Updated environment configuration (`wrangler.jsonc`, `.env.example`) to require `GITHUB_REPO`/`GITHUB_BRANCH` and deprecate Preview API variables.
-- Preview API 관련 `_deprecated/` 모듈을 2025-10-20에 완전히 제거했습니다.
+- Completely removed `_deprecated/` modules for Preview API on 2025-10-20.
 
 ## Validation
 - `npm run lint` — ✅ (zero warnings)
 - `npm run typecheck` — ✅ (no TypeScript errors)
-- `npm test` — ✅ 전체 스위트 통과 (GitHub client, markdown parser, KV synchronizer, integration suites)
+- `npm test` — ✅ All suites passing (GitHub client, markdown parser, KV synchronizer, integration suites)
 - `npm run test:coverage` — ✅ 78.66% statements coverage
 
 ## Remaining Work
