@@ -4,11 +4,14 @@
  * Detects changes in policy files between Git commits using GitHub API.
  */
 
-import type { ChangeSet, PolicyDocument } from './types';
+import type { ChangeSet, PolicyDocument, GitHubFile, GitHubTreeEntry } from './types';
 import type { GitHubClient } from './client';
 import { parseMarkdown, shouldProcessFile } from './markdown';
 
 export class ChangeTracker {
+  // GitHub API subrequest limit is 50; process in batches of 40 to be safe
+  private static readonly BATCH_SIZE = 40;
+
   constructor(private client: GitHubClient) {}
 
   /**
@@ -43,10 +46,25 @@ export class ChangeTracker {
     // Fetch commit diff
     const diff = await this.client.getCommitDiff(owner, repo, previousCommit, currentCommit);
 
-    // Process changed files
+    // Filter and categorize files
     const added: PolicyDocument[] = [];
     const modified: PolicyDocument[] = [];
     const deleted: string[] = [];
+
+    // Separate files that need content fetching
+    interface FileToProcess {
+      file: GitHubFile;
+      category: 'added' | 'modified' | 'renamed';
+    }
+
+    interface DeletedFile {
+      filename: string;
+      previous_filename?: string;
+      status: 'removed' | 'renamed';
+    }
+
+    const filesToFetch: FileToProcess[] = [];
+    const deletedFiles: DeletedFile[] = [];
 
     for (const file of diff.files) {
       // Only process markdown files (excluding README)
@@ -55,41 +73,43 @@ export class ChangeTracker {
       }
 
       if (file.status === 'added') {
-        // Fetch content for added file
-        const content = await this.client.getFileContent(owner, repo, file.sha);
-        const policy = parseMarkdown(content, file.filename, file.sha);
-        added.push(policy);
-        console.log(`[Tracker] ADD: ${policy.policyName}`);
+        filesToFetch.push({ file, category: 'added' });
       } else if (file.status === 'modified') {
-        // Fetch content for modified file
-        const content = await this.client.getFileContent(owner, repo, file.sha);
-        const policy = parseMarkdown(content, file.filename, file.sha);
-        modified.push(policy);
-        console.log(`[Tracker] UPDATE: ${policy.policyName}`);
+        filesToFetch.push({ file, category: 'modified' });
       } else if (file.status === 'removed') {
-        // Extract policy name from deleted file
+        deletedFiles.push({
+          filename: file.filename,
+          status: 'removed'
+        });
+      } else if (file.status === 'renamed') {
+        filesToFetch.push({ file, category: 'renamed' });
+        deletedFiles.push({
+          filename: file.filename,
+          previous_filename: file.previous_filename,
+          status: 'renamed'
+        });
+      }
+    }
+
+    // Process deleted files
+    for (const file of deletedFiles) {
+      if (file.status === 'removed') {
         const policyName = file.filename.split('/').pop()?.replace(/\.md$/i, '') || '';
         if (policyName) {
           deleted.push(policyName);
           console.log(`[Tracker] DELETE: ${policyName}`);
         }
-      } else if (file.status === 'renamed') {
-        // Handle rename: delete old, add new
-        if (file.previous_filename) {
-          const oldPolicyName =
-            file.previous_filename.split('/').pop()?.replace(/\.md$/i, '') || '';
-          if (oldPolicyName) {
-            deleted.push(oldPolicyName);
-            console.log(`[Tracker] DELETE (renamed): ${oldPolicyName}`);
-          }
+      } else if (file.status === 'renamed' && file.previous_filename) {
+        const oldPolicyName = file.previous_filename.split('/').pop()?.replace(/\.md$/i, '') || '';
+        if (oldPolicyName) {
+          deleted.push(oldPolicyName);
+          console.log(`[Tracker] DELETE (renamed): ${oldPolicyName}`);
         }
-
-        const content = await this.client.getFileContent(owner, repo, file.sha);
-        const policy = parseMarkdown(content, file.filename, file.sha);
-        added.push(policy);
-        console.log(`[Tracker] ADD (renamed): ${policy.policyName}`);
       }
     }
+
+    // Batch fetch file contents to avoid subrequest limit
+    await this.fetchFilesInBatches(owner, repo, filesToFetch, added, modified);
 
     console.log(
       `[Tracker] Changes detected: +${added.length} ~${modified.length} -${deleted.length}`
@@ -155,6 +175,13 @@ export class ChangeTracker {
     const tree = await this.client.getFileTree(owner, repo, commitSHA, true);
     const policies: PolicyDocument[] = [];
 
+    // Separate prefetched from entries that need fetching
+    interface EntryToFetch {
+      entry: GitHubTreeEntry;
+    }
+
+    const entriesToFetch: EntryToFetch[] = [];
+
     for (const entry of tree) {
       if (entry.type !== 'blob' || !shouldProcessFile(entry.path)) {
         continue;
@@ -169,20 +196,116 @@ export class ChangeTracker {
         continue;
       }
 
-      try {
-        const content = await this.client.getFileContent(owner, repo, entry.sha);
-        const policy = parseMarkdown(content, entry.path, entry.sha);
-        policies.push(policy);
+      entriesToFetch.push({ entry });
+    }
 
-        if (logContext === 'initial') {
-          console.log(`[Tracker] ADD (initial): ${policy.policyName}`);
+    // Batch fetch entries to avoid subrequest limit
+    const fetchedPolicies = await this.fetchEntriesInBatches(
+      owner,
+      repo,
+      entriesToFetch,
+      logContext
+    );
+    policies.push(...fetchedPolicies);
+
+    return policies;
+  }
+
+  /**
+   * Batch fetch file contents for detectChanges diff files
+   * Processes batches of 40 files to stay within Cloudflare 50 subrequest limit
+   */
+  private async fetchFilesInBatches(
+    owner: string,
+    repo: string,
+    filesToFetch: Array<{ file: GitHubFile; category: 'added' | 'modified' | 'renamed' }>,
+    added: PolicyDocument[],
+    modified: PolicyDocument[]
+  ): Promise<void> {
+    for (let i = 0; i < filesToFetch.length; i += ChangeTracker.BATCH_SIZE) {
+      const batch = filesToFetch.slice(i, i + ChangeTracker.BATCH_SIZE);
+      console.log(
+        `[Tracker] Fetching batch ${Math.floor(i / ChangeTracker.BATCH_SIZE) + 1}/${Math.ceil(filesToFetch.length / ChangeTracker.BATCH_SIZE)} (${batch.length} files)`
+      );
+
+      // Fetch all files in batch concurrently
+      const results = await Promise.allSettled(
+        batch.map(async ({ file, category }) => {
+          const content = await this.client.getFileContent(owner, repo, file.sha);
+          const policy = parseMarkdown(content, file.filename, file.sha);
+
+          if (category === 'added') {
+            console.log(`[Tracker] ADD: ${policy.policyName}`);
+            added.push(policy);
+          } else if (category === 'modified') {
+            console.log(`[Tracker] UPDATE: ${policy.policyName}`);
+            modified.push(policy);
+          } else if (category === 'renamed') {
+            console.log(`[Tracker] ADD (renamed): ${policy.policyName}`);
+            added.push(policy);
+          }
+
+          return policy;
+        })
+      );
+
+      // Log any failures in this batch
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const file = batch[index].file;
+          console.error(
+            `[Tracker] Failed to fetch ${file.filename}:`,
+            result.reason instanceof Error ? result.reason.message : String(result.reason)
+          );
         }
-      } catch (error) {
-        console.error(
-          `[Tracker] Failed to fetch ${entry.path}:`,
-          error instanceof Error ? error.message : String(error)
-        );
-      }
+      });
+    }
+  }
+
+  /**
+   * Batch fetch file contents for tree entries
+   * Processes batches of 40 files to stay within Cloudflare 50 subrequest limit
+   */
+  private async fetchEntriesInBatches(
+    owner: string,
+    repo: string,
+    entriesToFetch: Array<{ entry: GitHubTreeEntry }>,
+    logContext: 'initial' | 'full'
+  ): Promise<PolicyDocument[]> {
+    const policies: PolicyDocument[] = [];
+
+    for (let i = 0; i < entriesToFetch.length; i += ChangeTracker.BATCH_SIZE) {
+      const batch = entriesToFetch.slice(i, i + ChangeTracker.BATCH_SIZE);
+      console.log(
+        `[Tracker] Fetching batch ${Math.floor(i / ChangeTracker.BATCH_SIZE) + 1}/${Math.ceil(entriesToFetch.length / ChangeTracker.BATCH_SIZE)} (${batch.length} files)`
+      );
+
+      // Fetch all files in batch concurrently
+      const results = await Promise.allSettled(
+        batch.map(async ({ entry }) => {
+          const content = await this.client.getFileContent(owner, repo, entry.sha);
+          const policy = parseMarkdown(content, entry.path, entry.sha);
+
+          if (logContext === 'initial') {
+            console.log(`[Tracker] ADD (initial): ${policy.policyName}`);
+          }
+
+          return policy;
+        })
+      );
+
+      // Collect successful results and log failures
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          policies.push(result.value);
+        } else {
+          const entry = batch[index].entry;
+          console.error(
+            `[Tracker] Failed to fetch ${entry.path}:`,
+            result.reason instanceof Error ? result.reason.message : String(result.reason)
+          );
+        }
+      });
     }
 
     return policies;
