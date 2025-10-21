@@ -9,6 +9,9 @@ import type { GitHubClient } from './client';
 import { parseMarkdown, shouldProcessFile } from './markdown';
 
 export class ChangeTracker {
+  // GitHub API subrequest limit is 50; process in batches of 40 to be safe
+  private static readonly BATCH_SIZE = 40;
+
   constructor(private client: GitHubClient) {}
 
   /**
@@ -219,12 +222,10 @@ export class ChangeTracker {
     added: PolicyDocument[],
     modified: PolicyDocument[]
   ): Promise<void> {
-    const BATCH_SIZE = 40;
-
-    for (let i = 0; i < filesToFetch.length; i += BATCH_SIZE) {
-      const batch = filesToFetch.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < filesToFetch.length; i += ChangeTracker.BATCH_SIZE) {
+      const batch = filesToFetch.slice(i, i + ChangeTracker.BATCH_SIZE);
       console.log(
-        `[Tracker] Fetching batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(filesToFetch.length / BATCH_SIZE)} (${batch.length} files)`
+        `[Tracker] Fetching batch ${Math.floor(i / ChangeTracker.BATCH_SIZE) + 1}/${Math.ceil(filesToFetch.length / ChangeTracker.BATCH_SIZE)} (${batch.length} files)`
       );
 
       // Fetch all files in batch concurrently
@@ -271,13 +272,12 @@ export class ChangeTracker {
     entriesToFetch: Array<{ entry: GitHubTreeEntry }>,
     logContext: 'initial' | 'full'
   ): Promise<PolicyDocument[]> {
-    const BATCH_SIZE = 40;
     const policies: PolicyDocument[] = [];
 
-    for (let i = 0; i < entriesToFetch.length; i += BATCH_SIZE) {
-      const batch = entriesToFetch.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < entriesToFetch.length; i += ChangeTracker.BATCH_SIZE) {
+      const batch = entriesToFetch.slice(i, i + ChangeTracker.BATCH_SIZE);
       console.log(
-        `[Tracker] Fetching batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(entriesToFetch.length / BATCH_SIZE)} (${batch.length} files)`
+        `[Tracker] Fetching batch ${Math.floor(i / ChangeTracker.BATCH_SIZE) + 1}/${Math.ceil(entriesToFetch.length / ChangeTracker.BATCH_SIZE)} (${batch.length} files)`
       );
 
       // Fetch all files in batch concurrently
