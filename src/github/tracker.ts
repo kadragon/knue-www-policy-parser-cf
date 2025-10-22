@@ -9,8 +9,23 @@ import type { GitHubClient } from './client';
 import { parseMarkdown, shouldProcessFile } from './markdown';
 
 export class ChangeTracker {
-  // GitHub API subrequest limit is 50; process in batches of 40 to be safe
-  private static readonly BATCH_SIZE = 40;
+  /**
+   * Batch size for fetching file contents from GitHub API.
+   *
+   * Cloudflare Workers subrequest limit: 50 per request
+   * Typical usage:
+   * - getLatestCommit() / getCommitDiff() / other API calls: ~3 subrequests
+   * - getFileTree(recursive=true): 1 subrequest
+   * - getFileContent() per batch: N subrequests (where N = BATCH_SIZE)
+   *
+   * Safe calculation with BATCH_SIZE=20:
+   * 3 (initial) + 1 (tree) + 20 (batch) = 24 < 50 ✓
+   * Max batches per request: 50 / 20 ≈ 2 concurrent batches
+   *
+   * Tradeoff: 20 was chosen over 40 to provide 50% safety margin
+   * and prevent failures when additional subrequests are made.
+   */
+  private static readonly BATCH_SIZE = 20;
 
   constructor(private client: GitHubClient) {}
 
