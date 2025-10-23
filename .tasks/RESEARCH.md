@@ -1,9 +1,14 @@
+---
+id: TASK-RESEARCH-GITHUB-MIGRATION
+version: 1.0.0
+scope: project
+status: completed
+supersedes: [TASK-INIT-POLICY-PARSER]
+depends: []
+last-updated: 2025-10-20
+owner: project-admin
+---
 # Research Log - GitHub Repository Migration
-
-**Task ID**: `github-repo-migration`
-**Date**: 2025-10-20
-**Status**: In Progress
-**Supersedes**: `init-policy-parser` (v2.0.0)
 
 ## Problem Statement
 

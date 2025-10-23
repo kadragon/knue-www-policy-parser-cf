@@ -1,10 +1,14 @@
+---
+id: SPEC-GITHUB-INTEGRATION-001
+version: 1.0.0
+scope: global
+status: active
+supersedes: []
+depends: []
+last-updated: 2025-10-20
+owner: project-admin
+---
 # Specification - GitHub Integration
-
-**Spec ID**: `SPEC-GITHUB-INTEGRATION-001`
-**Version**: 1.0.0
-**Date**: 2025-10-20
-**Status**: Active
-**Related**: `SPEC-KV-SYNC-ALGO-001`, `SPEC-POLICY-NAME-MIGRATION-001`
 
 ---
 
