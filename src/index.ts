@@ -75,6 +75,7 @@ export default {
       }
 
       let changeSet: ChangeSet;
+      let isFirstRun = false;
       if (previousCommitSHA) {
         console.log(`🔄 Detecting changes between commits...`);
         changeSet = await changeTracker.detectChanges(owner, repo, latestCommit, previousCommitSHA);
@@ -85,11 +86,18 @@ export default {
         console.log(`📝 First run: will fetch all policy files...`);
         changeSet = await changeTracker.detectChanges(owner, repo, latestCommit);
         console.log(`✓ Found ${changeSet.added.length + changeSet.modified.length} policies`);
+        isFirstRun = true;
       }
 
       console.log(`\n🔄 Loading current policy set from GitHub...`);
       const prefetchedPolicies = [...changeSet.added, ...changeSet.modified];
-      const allPolicies = await changeTracker.getAllPolicies(owner, repo, latestCommit, prefetchedPolicies);
+
+      // Optimization: On first run, detectChanges already fetched all files
+      // So we can skip getAllPolicies to avoid redundant getFileTree call
+      const allPolicies = isFirstRun
+        ? prefetchedPolicies
+        : await changeTracker.getAllPolicies(owner, repo, latestCommit, prefetchedPolicies);
+
       const apiPolicies: ApiPolicy[] = allPolicies.map(policy => ({
         policyName: policy.policyName,
         title: policy.title,
