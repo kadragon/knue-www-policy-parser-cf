@@ -9,7 +9,7 @@ import {
 import { KVManager } from './kv/manager';
 import { PolicySynchronizer } from './kv/synchronizer';
 import type { ApiPolicy, SyncMetadata } from './kv/types';
-import type { ChangeSet } from './github/types';
+import type { ChangeSet, PolicyDocument } from './github/types';
 
 interface Env {
   POLICY_STORAGE: R2Bucket;
@@ -74,22 +74,45 @@ export default {
         return;
       }
 
-      let changeSet: ChangeSet;
-      if (previousCommitSHA) {
-        console.log(`🔄 Detecting changes between commits...`);
-        changeSet = await changeTracker.detectChanges(owner, repo, latestCommit, previousCommitSHA);
-        console.log(
-          `✓ Detected changes: ${changeSet.added.length} added, ${changeSet.modified.length} modified, ${changeSet.deleted.length} deleted`
-        );
-      } else {
-        console.log(`📝 First run: will fetch all policy files...`);
-        changeSet = await changeTracker.detectChanges(owner, repo, latestCommit);
-        console.log(`✓ Found ${changeSet.added.length + changeSet.modified.length} policies`);
-      }
+      // Helper: Load all policies for current commit
+      const loadAllPoliciesForCommit = async (
+        changeSet: ChangeSet,
+        isFirstRun: boolean
+      ): Promise<PolicyDocument[]> => {
+        if (isFirstRun) {
+          // First run: detectChanges already fetched all files
+          return [...changeSet.added, ...changeSet.modified];
+        }
+        // Incremental sync: need to load full policy set
+        const changedPolicies = [...changeSet.added, ...changeSet.modified];
+        return changeTracker.getAllPolicies(owner, repo, latestCommit, changedPolicies);
+      };
 
+      // Detect changes (first run vs incremental)
+      const isFirstRun = !previousCommitSHA;
+      console.log(
+        isFirstRun
+          ? `📝 First run: will fetch all policy files...`
+          : `🔄 Detecting changes between commits...`
+      );
+
+      const changeSet = await changeTracker.detectChanges(
+        owner,
+        repo,
+        latestCommit,
+        ...(isFirstRun ? [] : [previousCommitSHA])
+      );
+
+      console.log(
+        isFirstRun
+          ? `✓ Found ${changeSet.added.length + changeSet.modified.length} policies`
+          : `✓ Detected changes: ${changeSet.added.length} added, ${changeSet.modified.length} modified, ${changeSet.deleted.length} deleted`
+      );
+
+      // Load all policies with optimization for first run
       console.log(`\n🔄 Loading current policy set from GitHub...`);
-      const prefetchedPolicies = [...changeSet.added, ...changeSet.modified];
-      const allPolicies = await changeTracker.getAllPolicies(owner, repo, latestCommit, prefetchedPolicies);
+      const allPolicies = await loadAllPoliciesForCommit(changeSet, isFirstRun);
+
       const apiPolicies: ApiPolicy[] = allPolicies.map(policy => ({
         policyName: policy.policyName,
         title: policy.title,
@@ -99,7 +122,8 @@ export default {
       }));
       console.log(`✓ Loaded ${apiPolicies.length} policies from commit ${latestCommit.substring(0, 7)}`);
 
-      const changedPolicyNames = new Set(prefetchedPolicies.map(policy => policy.policyName));
+      const changedPolicies = [...changeSet.added, ...changeSet.modified];
+      const changedPolicyNames = new Set(changedPolicies.map(policy => policy.policyName));
 
       // ==================== Phase 2: KV Synchronization ====================
       console.log(`\n🔄 Starting KV synchronization...`);
