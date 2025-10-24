@@ -33,22 +33,28 @@ export class ChangeTracker {
   /**
    * Execute async functions with concurrency limit
    * Prevents exceeding Cloudflare subrequest limit
+   *
+   * IMPORTANT: Results are stored by original index to maintain order,
+   * because promises may resolve out of order due to async operations.
+   * This ensures results[i] corresponds to tasks[i], not completion order.
    */
   private async executeWithLimit<T>(
     tasks: Array<() => Promise<T>>,
     concurrency: number
   ): Promise<Array<{ status: 'fulfilled' | 'rejected'; value?: T; reason?: Error }>> {
-    const results: Array<{ status: 'fulfilled' | 'rejected'; value?: T; reason?: Error }> = [];
+    const results: Array<{ status: 'fulfilled' | 'rejected'; value?: T; reason?: Error }> = new Array(
+      tasks.length
+    );
     const executing = new Set<Promise<void>>();
 
-    for (const task of tasks) {
+    for (const [index, task] of tasks.entries()) {
       const promise = task()
         .then(
           value => {
-            results.push({ status: 'fulfilled', value });
+            results[index] = { status: 'fulfilled', value };
           },
           reason => {
-            results.push({ status: 'rejected', reason });
+            results[index] = { status: 'rejected', reason };
           }
         )
         .finally(() => executing.delete(promise));
