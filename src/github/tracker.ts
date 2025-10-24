@@ -13,21 +13,56 @@ export class ChangeTracker {
    * Batch size for fetching file contents from GitHub API.
    *
    * Cloudflare Workers subrequest limit: 50 per request
-   * Typical usage:
+   * Conservative approach with concurrent request limiting:
    * - getLatestCommit() / getCommitDiff() / other API calls: ~3 subrequests
    * - getFileTree(recursive=true): 1 subrequest
-   * - getFileContent() per batch: N subrequests (where N = BATCH_SIZE)
+   * - Concurrent fetches: 5 (limited via pLimit)
    *
-   * Safe calculation with BATCH_SIZE=20:
-   * 3 (initial) + 1 (tree) + 20 (batch) = 24 < 50 ✓
-   * Max batches per request: 50 / 20 ≈ 2 concurrent batches
+   * Safe calculation: 3 (initial) + 1 (tree) + 5 (concurrent) = 9 < 50 ✓
    *
-   * Tradeoff: 20 was chosen over 40 to provide 50% safety margin
-   * and prevent failures when additional subrequests are made.
+   * Strategy: Use BATCH_SIZE=30 with MAX_CONCURRENT_FETCHES=5
+   * - Process 30 files per batch
+   * - Limit to 5 concurrent HTTP requests per batch
+   * - This prevents subrequest limit from being exceeded
    */
-  private static readonly BATCH_SIZE = 20;
+  private static readonly BATCH_SIZE = 30;
+  private static readonly MAX_CONCURRENT_FETCHES = 5;
 
   constructor(private client: GitHubClient) {}
+
+  /**
+   * Execute async functions with concurrency limit
+   * Prevents exceeding Cloudflare subrequest limit
+   */
+  private async executeWithLimit<T>(
+    tasks: Array<() => Promise<T>>,
+    concurrency: number
+  ): Promise<Array<{ status: 'fulfilled' | 'rejected'; value?: T; reason?: Error }>> {
+    const results: Array<{ status: 'fulfilled' | 'rejected'; value?: T; reason?: Error }> = [];
+    const executing = new Set<Promise<void>>();
+
+    for (const task of tasks) {
+      const promise = task()
+        .then(
+          value => {
+            results.push({ status: 'fulfilled', value });
+          },
+          reason => {
+            results.push({ status: 'rejected', reason });
+          }
+        )
+        .finally(() => executing.delete(promise));
+
+      executing.add(promise);
+
+      if (executing.size >= concurrency) {
+        await Promise.race(executing);
+      }
+    }
+
+    await Promise.all(executing);
+    return results;
+  }
 
   /**
    * Detect changes between two commits
@@ -228,7 +263,7 @@ export class ChangeTracker {
 
   /**
    * Batch fetch file contents for detectChanges diff files
-   * Processes batches of 40 files to stay within Cloudflare 50 subrequest limit
+   * Processes batches with limited concurrency to stay within Cloudflare 50 subrequest limit
    */
   private async fetchFilesInBatches(
     owner: string,
@@ -239,30 +274,33 @@ export class ChangeTracker {
   ): Promise<void> {
     for (let i = 0; i < filesToFetch.length; i += ChangeTracker.BATCH_SIZE) {
       const batch = filesToFetch.slice(i, i + ChangeTracker.BATCH_SIZE);
+      const batchNum = Math.floor(i / ChangeTracker.BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(filesToFetch.length / ChangeTracker.BATCH_SIZE);
       console.log(
-        `[Tracker] Fetching batch ${Math.floor(i / ChangeTracker.BATCH_SIZE) + 1}/${Math.ceil(filesToFetch.length / ChangeTracker.BATCH_SIZE)} (${batch.length} files)`
+        `[Tracker] Fetching batch ${batchNum}/${totalBatches} (${batch.length} files, max ${ChangeTracker.MAX_CONCURRENT_FETCHES} concurrent)`
       );
 
-      // Fetch all files in batch concurrently
-      const results = await Promise.allSettled(
-        batch.map(async ({ file, category }) => {
-          const content = await this.client.getFileContent(owner, repo, file.sha);
-          const policy = parseMarkdown(content, file.filename, file.sha);
+      // Create tasks for concurrent execution with limit
+      const tasks = batch.map(({ file, category }) => async () => {
+        const content = await this.client.getFileContent(owner, repo, file.sha);
+        const policy = parseMarkdown(content, file.filename, file.sha);
 
-          if (category === 'added') {
-            console.log(`[Tracker] ADD: ${policy.policyName}`);
-            added.push(policy);
-          } else if (category === 'modified') {
-            console.log(`[Tracker] UPDATE: ${policy.policyName}`);
-            modified.push(policy);
-          } else if (category === 'renamed') {
-            console.log(`[Tracker] ADD (renamed): ${policy.policyName}`);
-            added.push(policy);
-          }
+        if (category === 'added') {
+          console.log(`[Tracker] ADD: ${policy.policyName}`);
+          added.push(policy);
+        } else if (category === 'modified') {
+          console.log(`[Tracker] UPDATE: ${policy.policyName}`);
+          modified.push(policy);
+        } else if (category === 'renamed') {
+          console.log(`[Tracker] ADD (renamed): ${policy.policyName}`);
+          added.push(policy);
+        }
 
-          return policy;
-        })
-      );
+        return policy;
+      });
+
+      // Execute with concurrency limit
+      const results = await this.executeWithLimit(tasks, ChangeTracker.MAX_CONCURRENT_FETCHES);
 
       // Log any failures in this batch
       results.forEach((result, index) => {
@@ -279,7 +317,7 @@ export class ChangeTracker {
 
   /**
    * Batch fetch file contents for tree entries
-   * Processes batches of 40 files to stay within Cloudflare 50 subrequest limit
+   * Processes batches with limited concurrency to stay within Cloudflare 50 subrequest limit
    */
   private async fetchEntriesInBatches(
     owner: string,
@@ -291,27 +329,30 @@ export class ChangeTracker {
 
     for (let i = 0; i < entriesToFetch.length; i += ChangeTracker.BATCH_SIZE) {
       const batch = entriesToFetch.slice(i, i + ChangeTracker.BATCH_SIZE);
+      const batchNum = Math.floor(i / ChangeTracker.BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(entriesToFetch.length / ChangeTracker.BATCH_SIZE);
       console.log(
-        `[Tracker] Fetching batch ${Math.floor(i / ChangeTracker.BATCH_SIZE) + 1}/${Math.ceil(entriesToFetch.length / ChangeTracker.BATCH_SIZE)} (${batch.length} files)`
+        `[Tracker] Fetching batch ${batchNum}/${totalBatches} (${batch.length} files, max ${ChangeTracker.MAX_CONCURRENT_FETCHES} concurrent)`
       );
 
-      // Fetch all files in batch concurrently
-      const results = await Promise.allSettled(
-        batch.map(async ({ entry }) => {
-          const content = await this.client.getFileContent(owner, repo, entry.sha);
-          const policy = parseMarkdown(content, entry.path, entry.sha);
+      // Create tasks for concurrent execution with limit
+      const tasks = batch.map(({ entry }) => async () => {
+        const content = await this.client.getFileContent(owner, repo, entry.sha);
+        const policy = parseMarkdown(content, entry.path, entry.sha);
 
-          if (logContext === 'initial') {
-            console.log(`[Tracker] ADD (initial): ${policy.policyName}`);
-          }
+        if (logContext === 'initial') {
+          console.log(`[Tracker] ADD (initial): ${policy.policyName}`);
+        }
 
-          return policy;
-        })
-      );
+        return policy;
+      });
+
+      // Execute with concurrency limit
+      const results = await this.executeWithLimit(tasks, ChangeTracker.MAX_CONCURRENT_FETCHES);
 
       // Collect successful results and log failures
       results.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
+        if (result.status === 'fulfilled' && result.value) {
           policies.push(result.value);
         } else {
           const entry = batch[index].entry;

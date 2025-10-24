@@ -25,10 +25,12 @@ export class PolicySynchronizer {
    * 4. Persist changes and return results
    */
   async synchronize(currentPolicies: ApiPolicy[]): Promise<SyncResult> {
-    console.log(`[Sync] Starting synchronization with ${currentPolicies.length} current policies`);
+    // Validate all policies before processing
+    const validPolicies = this.validateAndFilterPolicies(currentPolicies);
+    console.log(`[Sync] Starting synchronization with ${validPolicies.length}/${currentPolicies.length} valid policies`);
 
     // Phase 1: Build current state maps
-    const currentMap = this.buildPolicyMap(currentPolicies);
+    const currentMap = this.buildPolicyMap(validPolicies);
     const kvRegistry = await this.kvManager.getAllPolicies();
 
     console.log(`[Sync] Loaded ${kvRegistry.size} policies from KV registry`);
@@ -45,13 +47,13 @@ export class PolicySynchronizer {
       if (!existing) {
         // ADD: New policy
         toAdd.push(this.createPolicyEntry(apiPolicy));
-        console.log(`[Sync] ADD: "${policyName}" (sha: ${apiPolicy.sha.substring(0, 7)})`);
+        console.log(`[Sync] ADD: "${policyName}" (sha: ${(apiPolicy.sha || 'unknown').substring(0, 7)})`);
       } else if (existing.sha !== apiPolicy.sha) {
         // UPDATE: sha changed (content modified)
         const updated = this.createPolicyEntry(apiPolicy);
         toUpdate.push(updated);
         console.log(
-          `[Sync] UPDATE: "${policyName}" (sha: ${existing.sha.substring(0, 7)} → ${apiPolicy.sha.substring(0, 7)})`
+          `[Sync] UPDATE: "${policyName}" (sha: ${(existing.sha || 'unknown').substring(0, 7)} → ${(apiPolicy.sha || 'unknown').substring(0, 7)})`
         );
       } else {
         // NO-OP: No changes

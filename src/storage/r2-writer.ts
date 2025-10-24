@@ -107,7 +107,7 @@ export async function writePoliciestoR2ByPolicyNameV2(
       });
 
       savedPolicies.push({ policyName, path });
-      console.log(`✓ [R2 v2] Saved policy: ${path} (policyName: "${policyName}", sha: ${policy.sha.substring(0, 7)})`);
+      console.log(`✓ [R2 v2] Saved policy: ${path} (policyName: "${policyName}", sha: ${(policy.sha || 'unknown').substring(0, 7)})`);
     } catch (error) {
       const policyName = policy.policyName || 'Unknown';
       errors.push({
@@ -178,7 +178,7 @@ export async function writePolicyEntriesToR2V2(
       });
 
       savedPolicies.push({ policyName, path });
-      console.log(`✓ [R2 v2] Saved entry: ${path} (policyName: "${policyName}", sha: ${entry.sha.substring(0, 7)})`);
+      console.log(`✓ [R2 v2] Saved entry: ${path} (policyName: "${policyName}", sha: ${(entry.sha || 'unknown').substring(0, 7)})`);
     } catch (error) {
       const policyName = entry.policyName || 'Unknown';
       errors.push({
