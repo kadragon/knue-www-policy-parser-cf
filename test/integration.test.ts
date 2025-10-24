@@ -115,12 +115,14 @@ describe('Full Cron Workflow Integration', () => {
   let kvManager: IntegrationMockKVManager;
 
   // Helper to create test ApiPolicy objects (v2.0.0 structure)
+  // Generates valid 40-char hex sha: 0000000000000000000000000000000001000000 + i
   const createTestPolicy = (i: number, title?: string): ApiPolicy => {
     const policyName = `정책_${i + 1}`;
+    const shaIndex = String(1000 + i).padStart(40, '0');
     return {
       policyName,
       title: title || `규정_${i + 1}`,
-      sha: `sha_${1000 + i}`,
+      sha: shaIndex,
       path: `policies/${policyName}.md`,
       content: `# ${title || `규정_${i + 1}`}\n\n정책 내용`
     };
@@ -176,21 +178,21 @@ describe('Full Cron Workflow Integration', () => {
         {
           policyName: '정책_46',
           title: '규정_46',
-          sha: 'sha_2000', // Updated sha
+          sha: '0000000000000000000000000000000002000000', // Updated sha
           path: 'policies/정책_46.md',
           content: '# 규정_46\n\n정책 내용'
         },
         {
           policyName: '정책_47',
           title: '규정_47',
-          sha: 'sha_2001', // Updated sha
+          sha: '0000000000000000000000000000000002000001', // Updated sha
           path: 'policies/정책_47.md',
           content: '# 규정_47\n\n정책 내용'
         },
         {
           policyName: '정책_48',
           title: '규정_48',
-          sha: 'sha_2002', // Updated sha
+          sha: '0000000000000000000000000000000002000002', // Updated sha
           path: 'policies/정책_48.md',
           content: '# 규정_48\n\n정책 내용'
         },
@@ -201,14 +203,14 @@ describe('Full Cron Workflow Integration', () => {
         {
           policyName: '신규정책_1',
           title: '신규규정_1',
-          sha: 'sha_3000',
+          sha: '0000000000000000000000000000000003000000',
           path: 'policies/신규정책_1.md',
           content: '# 신규규정_1\n\n새로운 정책'
         },
         {
           policyName: '신규정책_2',
           title: '신규규정_2',
-          sha: 'sha_3001',
+          sha: '0000000000000000000000000000000003000001',
           path: 'policies/신규정책_2.md',
           content: '# 신규규정_2\n\n새로운 정책'
         }
@@ -295,7 +297,8 @@ describe('Full Cron Workflow Integration', () => {
       for (let cycle = 0; cycle < cycles; cycle++) {
         const policies: ApiPolicy[] = Array.from({ length: 20 }, (_, i) => ({
           ...createTestPolicy(i),
-          sha: `sha_cycle_${cycle}_${i}` // Different sha for each cycle to simulate updates
+          // Generate valid 40-char hex sha: cycle digit + i padded to 40 chars
+          sha: String(cycle * 1000 + i).padStart(40, '0')
         }));
 
         const result = await synchronizer.synchronize(policies);
@@ -327,7 +330,7 @@ describe('Full Cron Workflow Integration', () => {
         {
           policyName: '학칙',
           title: '학칙',
-          sha: 'sha_868',
+          sha: '0000000000000000000000000000000000000868',
           path: 'policies/학칙.md',
           content: '# 학칙\n\n정책 내용'
         }
@@ -364,7 +367,7 @@ describe('Full Cron Workflow Integration', () => {
       const policies: ApiPolicy[] = complexTitles.map((title, i) => ({
         policyName: `정책_${i + 1}`,
         title,
-        sha: `sha_${1000 + i}`,
+        sha: String(1000 + i).padStart(40, '0'),
         path: `policies/정책_${i + 1}.md`,
         content: `# ${title}\n\n정책 내용`,
         fileNo: `${1000 + i}`
@@ -390,7 +393,7 @@ describe('Full Cron Workflow Integration', () => {
         {
           policyName: '학칙정책',
           title: '학칙',
-          sha: 'sha_1',
+          sha: '0000000000000000000000000000000000000001',
           path: 'policies/학칙정책.md',
           content: '# 학칙\n\n정책 내용'
         }
@@ -403,7 +406,7 @@ describe('Full Cron Workflow Integration', () => {
         {
           policyName: '학칙정책',
           title: '학칙',
-          sha: 'sha_999999',
+          sha: '0000000000000000000000000000000000999999',
           path: 'policies/학칙정책.md',
           content: '# 학칙\n\n정책 내용'
         }

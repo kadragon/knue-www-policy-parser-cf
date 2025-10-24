@@ -101,7 +101,7 @@ describe('PolicySynchronizer (v2.0.0)', () => {
         {
           policyName: '신규규정',
           title: '신규 규정',
-          sha: 'abc123def456789abcdef0123456789abcdef01',
+          sha: 'abc123def456789abcdef0123456789abcdef010',
           path: 'policies/신규규정.md',
           content: '# 신규 규정\n\n내용'
         }
@@ -124,7 +124,7 @@ describe('PolicySynchronizer (v2.0.0)', () => {
         title: '한국교원대학교 학칙',
         status: 'active',
         lastUpdated: new Date().toISOString(),
-        sha: 'oldsha1234567890abcdef0123456789abcdef0',
+        sha: '0000000000000000000000000000000000000001',
         path: 'policies/학칙.md'
       };
       await mockKVManager.setPolicyEntry(existingPolicy);
@@ -134,7 +134,7 @@ describe('PolicySynchronizer (v2.0.0)', () => {
         {
           policyName: '학칙',
           title: '한국교원대학교 학칙',
-          sha: 'newsha0987654321abcdef0123456789abcdef9',
+          sha: '0000000000000000000000000000000000000002',
           path: 'policies/학칙.md',
           content: '# Updated 학칙\n\n새로운 내용'
         }
@@ -146,11 +146,11 @@ describe('PolicySynchronizer (v2.0.0)', () => {
       expect(result.stats.updated).toBe(1);
       expect(result.stats.deleted).toBe(0);
       expect(result.toUpdate).toHaveLength(1);
-      expect(result.toUpdate[0].sha).toBe('newsha0987654321abcdef0123456789abcdef9');
+      expect(result.toUpdate[0].sha).toBe('0000000000000000000000000000000000000002');
     });
 
     it('should NOT update policies when sha is identical', async () => {
-      const sha = 'shavalue123456789abcdef0123456789abcd01';
+      const sha = 'shavalue123456789abcdef0123456789abcd001';
 
       // Setup existing policy
       const existingPolicy: PolicyEntry = {
@@ -211,7 +211,7 @@ describe('PolicySynchronizer (v2.0.0)', () => {
         title: '한국교원대학교 학칙',
         status: 'active',
         lastUpdated: new Date().toISOString(),
-        sha: 'old-sha-868',
+        sha: '0000000000000000000000000000000000000868',
         path: 'policies/학칙.md'
       };
 
@@ -220,7 +220,7 @@ describe('PolicySynchronizer (v2.0.0)', () => {
         title: '폐기된 규정',
         status: 'active',
         lastUpdated: new Date().toISOString(),
-        sha: 'old-sha-500',
+        sha: '0000000000000000000000000000000000000500',
         path: 'policies/폐기된규정.md'
       };
 
@@ -232,14 +232,14 @@ describe('PolicySynchronizer (v2.0.0)', () => {
         {
           policyName: '학칙',
           title: '한국교원대학교 학칙',
-          sha: 'new-sha-870', // Changed
+          sha: '0000000000000000000000000000000000000870', // Changed
           path: 'policies/학칙.md',
           content: '# Updated'
         },
         {
           policyName: '신규규정',
           title: '신규 규정',
-          sha: 'new-sha-999',
+          sha: '0000000000000000000000000000000000000999',
           path: 'policies/신규규정.md',
           content: '# New'
         }
@@ -256,7 +256,7 @@ describe('PolicySynchronizer (v2.0.0)', () => {
     });
 
     it('should handle no changes scenario', async () => {
-      const sha = 'no-change-sha12345678901234567890';
+      const sha = 'abc123def456789abcdef0123456789abcdef010';
 
       // Setup existing policy
       const existingPolicy: PolicyEntry = {
@@ -376,14 +376,14 @@ describe('PolicySynchronizer (v2.0.0)', () => {
         {
           policyName: '유효한규정',
           title: '유효한 규정',
-          sha: 'abc123def456789abcdef0123456789abcdef01',
+          sha: 'abc123def456789abcdef0123456789abcdef010',
           path: 'policies/유효한규정.md',
           content: '# 유효한 규정'
         },
         {
           policyName: '또다른규정',
           title: '또 다른 규정',
-          sha: 'abc123def456789abcdef0123456789abcdef03',
+          sha: 'abc123def456789abcdef0123456789abcdef030',
           path: 'policies/또다른규정.md',
           content: '# 또 다른 규정'
         }
@@ -410,14 +410,14 @@ describe('PolicySynchronizer (v2.0.0)', () => {
         {
           policyName: '학칙',
           title: '학칙',
-          sha: 'sha-first-occurrence',
+          sha: '1111111111111111111111111111111111111111',
           path: 'policies/학칙.md',
           content: '# First'
         },
         {
           policyName: '학칙', // Duplicate policyName
           title: '학칙 (duplicate)',
-          sha: 'sha-second-occurrence',
+          sha: '2222222222222222222222222222222222222222',
           path: 'policies/학칙-2.md',
           content: '# Second'
         }
@@ -427,7 +427,7 @@ describe('PolicySynchronizer (v2.0.0)', () => {
 
       expect(result.stats.totalScanned).toBe(1);
       expect(result.toAdd).toHaveLength(1);
-      expect(result.toAdd[0].sha).toBe('sha-first-occurrence');
+      expect(result.toAdd[0].sha).toBe('1111111111111111111111111111111111111111');
     });
 
     it('should timestamp policy entries correctly', async () => {
@@ -437,7 +437,7 @@ describe('PolicySynchronizer (v2.0.0)', () => {
         {
           policyName: '신규규정',
           title: '신규',
-          sha: 'abc123def456789abcdef0123456789abcdef01',
+          sha: 'abc123def456789abcdef0123456789abcdef010',
           path: 'policies/신규규정.md',
           content: '# 신규'
         }
@@ -460,7 +460,7 @@ describe('PolicySynchronizer (v2.0.0)', () => {
         {
           policyName: '한국교원대학교학칙',
           title: '한국교원대학교 학칙',
-          sha: 'abc123def456789abcdef0123456789abcdef01',
+          sha: 'abc123def456789abcdef0123456789abcdef010',
           path: 'policies/한국교원대학교학칙.md',
           content: '# 한국교원대학교 학칙'
         }
